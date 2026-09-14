@@ -92,6 +92,7 @@ Not every solution needs every skill — a simple calculator app might only need
 |---|---|---|
 | **Glass Balustrade Configurator** | [`prototypes/glass-balustrade-configurator/`](./prototypes/glass-balustrade-configurator/README.md) | A local test app chaining `skyciv-api-v3` → `s3d-api` → `load-gen-api` (AS 1170.2 wind) → `load-combinations` (AS/NZS 1170.0) → `run-quick-design` (AS/NZS 1664) → `renderer` → `cloudcad-api` to model, wind/imposed-load-check, visualize and draft a glass balustrade (aluminium posts, glass infill, CHS handrail) from post spacing, run length, occupancy classification, and site/building data. |
 | **Truss Designer** | [`prototypes/truss-designer/`](./prototypes/truss-designer/README.md) | A local test app chaining `skyciv-api-v3` → `s3d-api` → `run-quick-design` (NDS 2018) → `renderer` → `cloudcad-api` to model, ASCE 7-22-check, visualize and draft a Warren/Fink/Howe/Pratt timber roof truss from span, height, type, and a single section size. |
+| **Portal Frame Builder** | [`skyciv-portal-frame-builder/`](./skyciv-portal-frame-builder/README.md) | An `s3d-apps` left-menu app (not a standalone prototype - runs *inside* an open S3D session) chaining `s3d-api` (model schema) → `load-gen-api` (AS/NZS 1170.2 + ASCE 7 wind) → `load-combinations` to turn Geometry / Sections + Purlins / Loads / Load Cases + Combos tabs into a parametric gable portal-frame spaceframe, merged into whatever model is already open. |
 
 ---
 

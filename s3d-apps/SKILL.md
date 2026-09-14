@@ -48,8 +48,6 @@ A SkyCiv App is a draggable window registered inside S3D that renders your own H
 > **identically** regardless of which one hosts your UI — only the container and its
 > open/close mechanics differ.
 
-In both cases, this will run on S3D which has Semantic UI installed. Please stay consistent with current UI and CSS using "primary" colour for blue buttons and core Semantic UI elements for dropdowns, inputs, radios etc..
-
 ---
 
 ## Runtime environment
@@ -60,10 +58,268 @@ The host page already provides these globals — **do not declare or import them
 |---|---|
 | `jQuery` (`$`) | DOM manipulation inside your app's `content` HTML |
 | `SKYCIV_APPS` | Namespace you register your app into (`SKYCIV_APPS.create(config)`) |
-| `S3D` | Model read/write (`S3D.structure.*`), graphics/selection (`S3D.graphics.*`) |
+| `S3D` | Model read/write (`S3D.structure.*`), graphics/selection (`S3D.graphics.*`), left menu (`S3D.UI.leftMenu.*`) |
 | `SKYCIV` | Platform utilities, e.g. notifications (`SKYCIV.utils.alert.sideNotify`) |
+| `SKYCIV_UTILS` | Signed-in user utilities — **`SKYCIV_UTILS.currentUser.getApiAuth()`** returns `{username, key}` for API calls (see "Authentication" below) |
+| `SB` | Section Builder — **`SB.library.getTree()`** returns the whole section database, client-side and synchronous (see "Choosing sections" below) |
 
-The S3D UI itself is built with **Semantic UI** and **jQuery** — reuse their classes (`ui button`, `ui button primary`, etc.) so your app's controls look native.
+Semantic UI (CSS **and** its jQuery modules) is loaded on the page too — see the next section.
+
+---
+
+## UI: build it out of Semantic UI components (not hand-rolled HTML/CSS)
+
+> **This is a hard requirement, not a style preference.** S3D's entire interface is Semantic
+> UI. An app built from bare `<input>` / `<select>` / custom-CSS `<div>`s looks obviously
+> bolted-on next to it, even if it functions perfectly.
+>
+> **This applies to every control, not just buttons** — inputs, dropdowns, checkboxes,
+> radios, tabs, tables, messages, labels, dividers and headers all have a Semantic
+> equivalent, and you should use it. (Reaching only for `ui button primary` and leaving the
+> form fields bare is the single most common way this gets missed.)
+
+**❌ Don't** hand-roll controls and style them yourself:
+
+```html
+<style>.my-field label{display:block;font-weight:600;} .my-field input{...}</style>
+<div class="my-field"><label>Span (m)</label><input type="number" id="span"></div>
+<select id="truss-type"><option>Warren</option></select>
+```
+
+**✅ Do** use the Semantic component for each control:
+
+```html
+<div class="ui form">
+  <div class="two fields">
+    <div class="field">
+      <label>Span</label>
+      <div class="ui right labeled input">
+        <input type="number" id="span" value="10">
+        <div class="ui basic label">m</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Truss type</label>
+      <select class="ui dropdown" id="truss-type"><option value="warren">Warren</option></select>
+    </div>
+  </div>
+</div>
+```
+
+### Component cheatsheet
+
+| Need | Semantic markup |
+|---|---|
+| Form wrapper | `<div class="ui form">` |
+| One field | `<div class="field"><label>…</label>…</div>` |
+| Fields side by side | `<div class="two fields">` / `three fields` / `four fields` |
+| Text/number input | `<div class="ui input"><input type="number"></div>` |
+| Input with a unit suffix | `<div class="ui right labeled input"><input><div class="ui basic label">m</div></div>` |
+| Dropdown | `<select class="ui dropdown">` (see module init below) |
+| Section picker | 4 cascading `<select class="ui mini dropdown">` fed by `SB.library.getTree()` — **never** free-text `load_section` parts, see "Choosing sections" |
+| Checkbox / radio | `<div class="ui checkbox"><input type="checkbox"><label>…</label></div>` (`ui radio checkbox` for radios) |
+| Primary action | `<button class="ui primary button">` — full width: `ui primary fluid button` |
+| Secondary action | `<button class="ui button">` |
+| In-progress button | add `loading disabled` classes, remove when done |
+| Callout / note | `<div class="ui info message">`, `warning`, `negative`, `positive` (add `tiny` in narrow panels) |
+| Results table | `<table class="ui celled compact small table">` |
+| Tabs | `<div class="ui top attached tabular menu"><a class="item active" data-tab="x">…</a></div>` + `<div class="ui bottom attached segment">` |
+| Status chip | `<span class="ui tiny blue label">ULS</span>` |
+| Grouping / spacing | `<div class="ui segment">`, `<div class="ui divider">`, `<h5 class="ui header">` |
+| Icons | `<i class="file alternate outline icon"></i>` |
+
+### Optional module init
+
+The markup above is styled by Semantic's CSS on its own. Calling the jQuery modules upgrades
+`<select>` to Semantic's richer widget and makes checkboxes animate — guard it so the plain
+controls still work if a module isn't present in a given build:
+
+```javascript
+try {
+    if ($.fn && typeof $.fn.dropdown === 'function') $panel.find('select.ui.dropdown').dropdown();
+    if ($.fn && typeof $.fn.checkbox === 'function') $panel.find('.ui.checkbox').checkbox();
+} catch (err) { /* native controls still work */ }
+```
+
+The underlying `<select>`/`<input>` element stays the source of truth either way, so
+`$('#truss-type').val()` reads correctly whether or not the module initialised, and a native
+`change` event still fires.
+
+### What custom CSS is still fine
+
+Only what Semantic genuinely doesn't cover — e.g. showing/hiding your own tab panes, or a
+density tweak for a narrow left-menu panel. If you find yourself writing rules for label
+weight, input borders, button colours or table borders, you're re-implementing Semantic.
+Keep every class you *do* add uniquely prefixed (see the styling note in "App scaffold").
+
+---
+
+## Authentication: never ask the user for API credentials
+
+An app runs **inside a session the user is already signed in to**. If your app needs to call a
+SkyCiv HTTP API (e.g. `standalone.loads.*` from [`load-gen-api`](../load-gen-api/SKILL.md),
+or a `run-quick-design` calculator) read the credentials straight from the session:
+
+```javascript
+const auth = SKYCIV_UTILS.currentUser.getApiAuth();
+// → { username: "example@skyciv.com", key: "ExAmPlE" }
+
+fetch('https://api.skyciv.com/v3', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        auth,                                   // straight from the signed-in user
+        options: { validate_input: true },
+        functions: [ /* … */ ],
+    }),
+});
+```
+
+> **Do not** build a settings modal, an API-key input, or a `localStorage` credential cache in
+> an S3D App or left-menu panel. The root `CLAUDE.md` "collect credentials in the UI" tip is
+> for **standalone prototypes** that run outside the platform and have no signed-in user to
+> read from — it does not apply here, and asking an already-signed-in user to go fetch their
+> own API key is a bug, not a feature.
+
+Guard it defensively (it returns nothing useful if somehow called outside a signed-in
+session) and tell the user via `sideNotify` rather than falling back to a prompt.
+
+---
+
+## Choosing sections: `SB.library.getTree()`, never a typed-in path
+
+A member's section is set with a 4-part `load_section` path — `[region, standard, category,
+section name]` — and the lookup is an **exact string match** against SkyCiv's section library.
+A typo, a stale name, or a category that doesn't exist under the chosen standard produces a
+section the solver can't resolve.
+
+So **never ask the user to type a `load_section` path**. The whole library is already on the
+page: `SB.library.getTree()` returns it synchronously — no API call, no auth, no await — as a
+4-level nested object mirroring the path exactly:
+
+```javascript
+SB.library.getTree()
+// {
+//   "Australian": {
+//     "Steel (300 Grade)": {
+//       "Universal beams":   { "150 UB 14.0": "", "180 UB 16.1": "", … },
+//       "Universal columns": { "100 UC 14.8": "", "150 UC 23.4": "", … },
+//       …
+//     },
+//     "Timber (GluLam)": { … },
+//     …
+//   },
+//   "American": { "AISC": { "W shapes": { "W12x26": "", … }, … }, … },
+//   …
+// }
+```
+
+Every branch is exactly 4 levels deep, and the leaf is an object whose **keys** are the section
+names (the values are empty strings — ignore them). Walk it to drive **four cascading Semantic
+dropdowns**, each level populated from the level selected above it:
+
+❌ **Wrong** — four text boxes the user has to spell correctly:
+
+```javascript
+'<input type="text" placeholder="Region" /><input type="text" placeholder="Standard" />' +
+'<input type="text" placeholder="Category" /><input type="text" placeholder="Section name" />'
+```
+
+✅ **Right** — pick from what the library actually contains:
+
+```javascript
+const LEVELS = ['Region', 'Standard', 'Category', 'Section'];
+
+// Options available directly below a partial path, e.g. levelOptions(['Australian']).
+function levelOptions(tree, path) {
+    let node = tree;
+    for (const key of path) {
+        if (!node || typeof node !== 'object') return [];
+        node = node[key];
+    }
+    return node && typeof node === 'object' ? Object.keys(node) : [];
+}
+
+// Snap a desired default onto what the library really has, substituting the first
+// available option at any level that doesn't exist.
+function resolvePath(tree, wanted) {
+    const path = [];
+    for (let i = 0; i < 4; i++) {
+        const options = levelOptions(tree, path);
+        if (!options.length) break;
+        path.push(options.includes(wanted[i]) ? wanted[i] : options[0]);
+    }
+    return path;
+}
+
+function renderSectionPicker(prefix, label, wanted) {
+    const tree = SB.library.getTree();
+    const path = resolvePath(tree, wanted);
+    const selects = path.map((value, i) => {
+        const opts = levelOptions(tree, path.slice(0, i))
+            .map(o => `<option value="${o}"${o === value ? ' selected' : ''}>${o}</option>`).join('');
+        return `<div class="field"><select class="ui mini dropdown" id="${prefix}-${i}"
+                    data-section="${prefix}" data-level="${i}" title="${LEVELS[i]}">${opts}</select></div>`;
+    });
+    // Two rows of two - four dropdowns across is unreadable in a left-menu panel.
+    return `<div class="field"><label>${label}</label>
+        <div class="two fields">${selects[0]}${selects[1]}</div>
+        <div class="two fields">${selects[2]}${selects[3]}</div></div>`;
+}
+
+// Repopulate everything below whichever level changed, keeping a choice that is
+// still valid under the new parent.
+$root.on('change', 'select[data-section]', function () {
+    const prefix = $(this).attr('data-section');
+    const changed = parseInt($(this).attr('data-level'), 10);
+    const tree = SB.library.getTree();
+    const path = [];
+    for (let i = 0; i <= changed; i++) path.push($root.find(`#${prefix}-${i}`).val());
+
+    for (let lvl = changed + 1; lvl < 4; lvl++) {
+        const options = levelOptions(tree, path);
+        const $sel = $root.find(`#${prefix}-${lvl}`);
+        const value = options.includes($sel.val()) ? $sel.val() : options[0];
+        setSelectOptions($sel, options, value);
+        path.push(value);
+    }
+});
+```
+
+Then read the path back the same way you read any other field:
+
+```javascript
+const load_section = [0, 1, 2, 3].map(i => $root.find(`#${prefix}-${i}`).val());
+model.sections[id] = { load_section, material_id: matId };
+```
+
+**Two gotchas:**
+
+- **Semantic's dropdown module builds its menu once at init** and won't re-read a `<select>`
+  whose `<option>`s you replaced. After repopulating, push the new values into the module —
+  and fall back silently to the plain select when the module isn't there:
+
+  ```javascript
+  function setSelectOptions($sel, options, selected) {
+      $sel.html(options.map(o => `<option value="${o}">${o}</option>`).join('')).val(selected);
+      const $module = $sel.parents('.ui.dropdown').first();   // Semantic wraps the <select>
+      if ($module.length && typeof $.fn.dropdown === 'function') {
+          $module.dropdown('setup menu', {
+              values: options.map(o => ({ name: o, value: o, selected: o === selected })),
+          });
+          $module.dropdown('set selected', selected);
+      }
+  }
+  ```
+
+- **Don't hardcode a default path and trust it.** Run defaults through `resolvePath()` — library
+  contents vary between builds, and a default that silently doesn't resolve is worse than one
+  that snaps to a real section.
+
+> Server-side equivalent: the `S3D.SB.getLibraryTree` API function in
+> [`s3d-api`](../s3d-api/SKILL.md), and the [`section-selector`](../section-selector/SKILL.md)
+> skill, which ships a captured `section_tree.json` of the same shape — handy as a test fixture
+> when you can't reach a live `SB`.
 
 ---
 
@@ -393,27 +649,48 @@ jQuery(document).ready(function () {
             <html>
             <head>
                 <style>
-                    .main-abl { display: flex; flex-direction: column; gap: 10px; margin: auto; max-width: 380px; }
+                    /* Only what Semantic doesn't cover - layout of the app's own shell. */
+                    .main-abl { margin: auto; max-width: 380px; padding: 12px; }
                 </style>
             </head>
             <body>
                 <main class="main-abl">
-                    <h3>Auto Beam Loads</h3>
-                    <label>Dead load (per model force/length unit)
-                        <input type="number" id="dead-abl" value="1" />
-                    </label>
-                    <label>Live load (per model force/length unit)
-                        <input type="number" id="live-abl" value="2" />
-                    </label>
-                    <label>
-                        <input type="checkbox" id="selected-only-abl" />
-                        Apply to selected members only
-                    </label>
-                    <button class="ui button primary" onclick="SKYCIV_APPS.${app_id}.applyLoads()">Apply Loads</button>
+                    <h4 class="ui header">Auto Beam Loads</h4>
+                    <div class="ui form">
+                        <div class="two fields">
+                            <div class="field">
+                                <label>Dead load</label>
+                                <div class="ui right labeled input">
+                                    <input type="number" id="dead-abl" value="1" />
+                                    <div class="ui basic label">kN/m</div>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>Live load</label>
+                                <div class="ui right labeled input">
+                                    <input type="number" id="live-abl" value="2" />
+                                    <div class="ui basic label">kN/m</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="ui checkbox">
+                                <input type="checkbox" id="selected-only-abl" />
+                                <label>Apply to selected members only</label>
+                            </div>
+                        </div>
+                        <button class="ui primary button" onclick="SKYCIV_APPS.${app_id}.applyLoads()">Apply Loads</button>
+                    </div>
                 </main>
             </body>
             </html>
         `,
+        onInit: function () {
+            // Upgrade the Semantic markup to Semantic's widgets where available.
+            try {
+                if ($.fn && typeof $.fn.checkbox === 'function') $('.ui.checkbox').checkbox();
+            } catch (err) { /* native controls still work */ }
+        },
     };
 
     new SKYCIV_APPS.create(config);
@@ -500,10 +777,22 @@ hosting/open call changes:
 - **Left menu (preferred):** `S3D.UI.leftMenu.open({ title, content, openFunction, ... })`, bind your form's events inside `openFunction`.
 - **App window (only for a personal/experimental tool):** `SKYCIV_APPS.create({ ... })`, bind events via `onInit`/inline `onclick`.
 
+Three rules these tools get wrong most often, all covered in full above — worth re-checking
+before you ship one:
+
+- **Every input is a Semantic component**, not just the buttons — see "UI: build it out of
+  Semantic UI components". A generator form is mostly inputs and dropdowns, so this is where
+  a hand-rolled UI shows up worst.
+- **Never prompt for API credentials** if a step needs an HTTP API — use
+  `SKYCIV_UTILS.currentUser.getApiAuth()`. See "Authentication".
+- **Sections are picked from `SB.library.getTree()`**, never typed. A generator assigns a
+  section to every member it creates, so a `load_section` path that doesn't resolve breaks the
+  whole generated structure at once. See "Choosing sections".
+
 1. **Require a selection first.** Call `S3D.structure.getSelectedItems().nodes`; if it isn't exactly the count you need (e.g. 2 start/end nodes for a balustrade run, or 2 support nodes for a truss span), `sideNotify` an error and stop.
 2. **Compute geometry from the selection.** Read the relevant nodes' coordinates from `model.nodes`, work out the direction/length between them (or use `S3D.structure.nodes.getVector(startNode, endNode)` for the unit vector), then derive the rest of the layout from your form inputs (post/panel count and spacing for a balustrade; panel count, height, and truss type for a truss).
 3. **Respect `settings.vertical_axis`.** Apply height offsets (post height, truss rise) to whichever coordinate is vertical (`z` or `y`) for the new nodes — never hardcode `y`.
-4. **Generate in the single `temp_s3d_model`.** Add every new node and member (and `plates`, for a balustrade's glass facade) referencing the chosen `section_id`/`material_id` (from your dropdown inputs — populate dropdowns from the library sections/materials you expect the model to already contain, or add new `sections`/`materials` entries yourself and reference their IDs).
+4. **Generate in the single `temp_s3d_model`.** Add every new node and member (and `plates`, for a balustrade's glass facade) referencing the chosen `section_id`/`material_id`. Add the `sections`/`materials` entries yourself and reference their IDs, building each `load_section` from the cascading `SB.library.getTree()` dropdowns described in "Choosing sections" — or offer the sections/materials the open model already contains, read straight off `model.sections`/`model.materials`.
 5. **Optional loads are just conditional blocks.** e.g. if "wind load" or "snow load" is checked, add the relevant `distributed_loads`/`pressures`; skip entirely if the checkbox is off.
 6. **One `S3D.structure.set(temp_s3d_model, null, true)` at the end** so the whole generated structure (geometry + loads) appears — and undoes — as a single action.
 7. **Highlight the result.** After `set`, call `S3D.graphics.highlightElement('member', [...newMemberIds])` so the user immediately sees what was generated.

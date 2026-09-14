@@ -21,7 +21,16 @@ You will mainly load in sections using this format:
     }
 ```
 
-The strings in the array come directly from the names in `section_tree.json`. 
+The strings in the array come directly from the names in `section_tree.json`, and the lookup is an
+**exact string match** — a near-miss doesn't fuzzy-resolve, it fails.
+
+> **Building an S3D App or left-menu panel?** Don't ship `section_tree.json` and don't make the
+> user type the path. `SB.library.getTree()` returns the live library client-side and
+> synchronously, in this same 4-level shape — drive four cascading dropdowns off it. See
+> "Choosing sections" in [`s3d-apps`](../s3d-apps/SKILL.md). Server-side, the equivalent is the
+> `S3D.SB.getLibraryTree` API function in [`s3d-api`](../s3d-api/SKILL.md). `section_tree.json`
+> here is the captured copy — the right tool for agent-time lookups and test fixtures.
+
 
 # Common Section Types and their Use Cases
 

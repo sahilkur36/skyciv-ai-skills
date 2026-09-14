@@ -4,6 +4,13 @@ You are an agent that retrieves wind speeds, snow loads, wind pressures, and sei
 
 > **Prerequisite:** Always begin a session with `standalone.loads.start` as the first function (see "Session Start" below — `S3D.session.start` does not work here, despite what you may see suggested elsewhere). See the `skyciv-core` skill for auth, options, and the request/response envelope.
 
+> **Calling this from inside an S3D App / left-menu panel?** Get `auth` from the signed-in user
+> with **`SKYCIV_UTILS.currentUser.getApiAuth()`** (returns `{username, key}`) — never prompt the
+> user for an API key or cache one in `localStorage` from in-app code. See the "Authentication"
+> section of [`s3d-apps`](../s3d-apps/SKILL.md). The credential-collection UI described in the
+> root `CLAUDE.md` is for **standalone** prototypes only, where there's no signed-in session to
+> read from.
+
 ---
 
 ## Session Start
@@ -225,12 +232,32 @@ Defines the structure geometry and load calculation parameters.
 
 ### Wind parameters (`building_data.wind_parameters`)
 
+> ⚠️ **`structure_type` is code-specific — getting it wrong returns a response with no
+> `wind_pressure` at all.** Confirmed against the live API: sending ASCE's `"mwfrs"` on an
+> `as1170` request fails with `"structure_type is not applicable to roof_profile defined"`,
+> and the response still carries `site_data`/`wind_data`/`topography` — just no pressures.
+
+Note `wind_parameters.structure_type` is **not** the same field as
+[`building_data.structure`](#structure-types-building_datastructure) above — `structure` picks the
+*kind of structure* (building / freestanding wall / solar panel / …), `structure_type` picks *how
+the wind pressure is resolved on it*, and its legal values depend on the design code.
+
 | Key | Description |
 |---|---|
-| `structure_type` | `"mwfrs"` (Main Wind Force Resisting System) or `"cladding"` (Components & Cladding) |
-| `enclosure` | `"enclosed"`, `"partially-enclosed"`, `"partially-open"`, `"open"` |
+| `structure_type` | **ASCE 7 / NSCP, `structure: "building"`:** `"mwfrs"` (Main Wind Force Resisting System) or `"cladding"` (Components & Cladding). **AS/NZS 1170, EN 1991, IS 875, CFE:** `"building"`. **Non-building ASCE structures** take their own code-suffixed value (e.g. `"freestandingwall-asce7-16"`) — copy it from the matching `sample-api/` template |
+| `enclosure` | ASCE 7 / NSCP: `"enclosed"`, `"partially-enclosed"`, `"partially-open"`, `"open"` |
+| `structure_level` | Array of `{ floor_level, floor_elevation }` — **the elevations the windward-wall pressure is reported at**. Omit it and the API warns (`"wind_parameters.structure_level is not defined. Default value ({"floor_level":"2","floor_elevation":3}) will be used"`) and you get a single 3m station instead of a profile up your actual structure |
 | `wind_blockage` | ASCE 7/CFE/AS: `"clear"` or `"obstructed"` — AS/NZS 1170: `"empty"` or `"blocked"` |
 | `gust_effect_factor_override` | ASCE 7-10/16 and NSCP 2015: user-defined Gust Effect Factor |
+
+**AS/NZS 1170 also expects** these, each of which warns and silently defaults if omitted:
+`elevated_building` (bool), `wall_condition` (e.g. `"5"`), `action_combination_case` (e.g. `"1"`),
+`wall_type` (e.g. `"impermeable"`), `ratio_of_opening_to_total_area` (e.g. `"0"`). Copy
+[`sample-api/loads.getLoads_as1170/input.json`](./sample-api/loads.getLoads_as1170/input.json)
+rather than assembling `wind_parameters` by hand.
+
+Also note `design_code` takes the **versioned** ASCE value (`asce7-10` / `asce7-16` / `asce7-22`) —
+there is no bare `"asce7"`. `as1170` is unversioned.
 
 Set `wind_parameters: false` to skip wind load calculation.
 
@@ -449,6 +476,31 @@ Used in generated reports.
 - `neg_Cpi` — pressure with negative internal pressure coefficient
 - Values can be scalars (one elevation) or arrays (multiple elevations)
 
+**Response shape differs by design code** — don't write one parser and assume it covers both.
+`as1170` returns `pressures` as an **object keyed by wind angle** (`"0"`, `"90"`, …) with separate
+`windward_pressure`/`leeward_pressure`/`sidewall_pressure`/`roof_pressures` members; `asce7` returns
+the **flat array** shown above, keyed by `dirn`/`surface`. Check the real payload in
+[`sample-api/`](./sample-api/) for the code you're targeting before writing the parser.
+
+### `status: 1` is a warning, not necessarily a failure
+
+The envelope's `status` is `1` both for hard failures **and** for "field not defined, default used"
+warnings — and in the warning case the response still carries a perfectly usable payload. A single
+`msg` string concatenates every warning, so one bad field's message sits next to several harmless
+defaulting notices:
+
+```
+"wind_parameters.structure_level is not defined. Default value (...) will be used.
+ topography.country is not defined. Default value (Australia) will be used.
+ structure_type is not applicable to roof_profile defined"
+```
+
+**Judge the call on whether `data.wind_pressure` came back, not on `status`** — treat a missing
+`wind_pressure` as the failure and surface `msg` verbatim to the user, and treat `status: 1`
+*with* pressures as a warning to display alongside the results. Branching on `status !== 0` alone
+throws away good results; ignoring `msg` entirely hides the one line that says which field was
+wrong.
+
 ---
 
 ## Other Parameters
@@ -539,12 +591,28 @@ Used in generated reports.
         "length": 20, "width": 15,
         "mean_roof_height": 6, "roof_angle": 15
       },
-      "wind_parameters": { "structure_type": "building", "enclosure": "enclosed" },
+      "wind_parameters": {
+        "structure_type": "building",
+        "elevated_building": false,
+        "wall_condition": "5",
+        "action_combination_case": "1",
+        "wall_type": "impermeable",
+        "ratio_of_opening_to_total_area": "0",
+        "structure_level": [
+          { "floor_level": "2", "floor_elevation": 3 },
+          { "floor_level": "roof", "floor_elevation": 6 }
+        ]
+      },
       "snow_parameters": false
     }
   }
 }
 ```
+
+Note AS/NZS takes `structure_type: "building"` (**not** ASCE's `"mwfrs"` — that returns no
+`wind_pressure` at all) and has no `enclosure`; enclosure is expressed via `wall_type` /
+`ratio_of_opening_to_total_area` instead. Every AS-only key above warns and silently defaults if
+omitted.
 
 ### EN 1991 (UK)
 
@@ -628,4 +696,5 @@ Used in generated reports.
 - **Discover available sections:** Run `standalone.loads.getCountryDesignCodes` first if you're unsure which `design_code` to use for a given country.
 - **Topographic factor:** Set `topo_image: true` in `site_data.topography` to receive a base64 PNG of the site elevation profile.
 - **All-direction analysis:** Use `site_analysis` to run all 8 wind directions in one call and get the governing direction automatically.
-- **Start from a template:** Check the Sample API Templates table above for a matching design code + structure type before writing a request by hand.
+- **Start from a template:** Check the Sample API Templates table above for a matching design code + structure type before writing a request by hand. The parameter tables in this skill are a reference for what each key *means* — the `sample-api/` inputs are the authority on which keys a given design code actually wants. `wind_parameters` in particular differs enough between codes that assembling it from the table alone will produce a request that comes back with no pressures.
+- **Check `wind_pressure`, not `status`:** `status: 1` is used for non-fatal "default value will be used" warnings as well as real failures — see [`status: 1` is a warning, not necessarily a failure](#status-1-is-a-warning-not-necessarily-a-failure).
