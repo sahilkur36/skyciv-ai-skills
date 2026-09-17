@@ -26,9 +26,16 @@ The `s3d_model` is the JSON representation of a structural model. It is passed t
   "distributed_loads": { ... },
   "pressures": { ... },
   "area_loads": { ... },
+  "member_prestress_loads": { ... },
+  "thermal_loads": { ... },
   "self_weight": { ... },
   "load_combinations": { ... },
   "load_cases": { ... },
+  "load_combination_settings": { ... },
+  "nodal_masses": { ... },
+  "spectral_loads": { ... },
+  "moving_loads": { ... },
+  "suppress": { ... },
   "groups": { ... },
   "gridlines_and_elevations": [ ... ]
 }
@@ -101,11 +108,12 @@ Imperial defaults: `ft`, `in`, `ksi`, `lb/ft3`, `kip`, `kip-ft`, `ksf`, `kip`, `
 | `section_id` | `integer` | Section ID. `null` when `type` = `"rigid"`. |
 | `rotation_angle` | `float` | Rotation about member axis in degrees (−180 to 180). Ignored for `"cable"`/`"rigid"`. |
 | `fixity_A` / `fixity_B` | `string` | 6-character [restraint code](#restraint-codes). Ignored (forced `"FFFRRR"`) for `"cable"`; still applies for `"rigid"` and controls which forces/moments transfer through the link. |
+| `stiffness_A_Ry` / `stiffness_A_Rz` | `number` or `string` | Rotational release stiffness (partial fixity) about the local y/z axis at node A. Only applies where the corresponding `fixity_A` character is `'S'` (spring/semi-rigid) rather than `F` or `R`. Enter the actual stiffness (number > 0) or a percentage string like `"80%"`. |
+| `stiffness_B_Ry` / `stiffness_B_Rz` | `number` or `string` | Rotational release stiffness (partial fixity) about the local y/z axis at node B. Only applies where the corresponding `fixity_B` character is `'S'` (spring/semi-rigid) rather than `F` or `R`. Enter the actual stiffness (number > 0) or a percentage string like `"80%"`. |
 | `offset_Ax/Ay/Az` | `float` | Local offsets at node A. Ignored for `"cable"`/`"rigid"`. |
 | `offset_Bx/By/Bz` | `float` | Local offsets at node B. Ignored for `"cable"`/`"rigid"`. |
 | `local_axis_y` | `[float]` | Global vector `[X,Y,Z]` for local y-axis |
 | `local_axis_z` | `[float]` | Global vector `[X,Y,Z]` for local z-axis |
-| `mirror` | `string` (optional) | `"no"` (default), `"y"`, `"z"`, `"y_and_z"` — mirrors the member's section about its local axes without needing a separate mirrored section |
 | `disable_non_linear_effects` | `string` (optional) | `"yes"`, `"no"` (default) — excludes this member from non-linear/P-delta effects |
 
 **`type` values:**
@@ -158,6 +166,9 @@ Imperial defaults: `ft`, `in`, `ksi`, `lb/ft3`, `kip`, `kip-ft`, `ksf`, `kip`, `
 | `rotZ` | `float` | Rotation about local Z in degrees (default `0`) |
 | `type` | `string` | `"auto"` — considers shear deformation automatically |
 | `diaphragm` | `string` | `"no"` or `"rigid"` |
+| `diaphragm_internal_nodes` | `[integer]` or `null` | Internal node IDs included in a rigid diaphragm for this plate; `null` if not applicable |
+| `diaphragm_fixity` | `string` or `null` | Fixity/restraint applied to the diaphragm; `null` if not applicable |
+| `drilling_stiffness_factor` | `float` | Factor applied to the plate's drilling (rotational) stiffness about its normal axis |
 | `state` | `string` | `"stress"` or `"strain"` |
 
 ---
@@ -237,6 +248,11 @@ Available template shapes: `rectangle`, `hollow rectangle`, `circle`, `hollow ci
 | `yield_strength` | `float` | Yield strength |
 | `ultimate_strength` | `float` | Ultimate strength |
 | `class` | `string` | `"steel"`, `"aluminium"`, `"concrete"`, `"wood"`, `"masonry"`, `"other"` |
+| `thermal_expansion_coefficient` | `float` | Coefficient of thermal expansion |
+| `shear_modulus` | `float` | Shear modulus |
+| `elasticity_modulus_x` / `elasticity_modulus_y` | `float` | Orthotropic moduli of elasticity in the local x/y directions |
+| `shear_modulus_xy` / `shear_modulus_xz` / `shear_modulus_yz` | `float` | Orthotropic shear moduli |
+| `poissons_ratio_xy` | `float` | Orthotropic Poisson's ratio in the xy plane |
 
 ---
 
@@ -264,6 +280,8 @@ entry instead of one `node` entry per point:
 
 `direction_code` is available on **both** support forms above, not just line supports —
 see [Direction Codes](#direction-codes) for the format.
+
+**Non-linear spring stiffness** (optional): instead of a constant `tx/ty/tz/rx/ry/rz` value, a support can define `non_linear_spring_stiffness` — an object keyed by direction (`tx`, `ty`, `tz`, `rx`, `ry`, `rz`), where each entry is `{ "stiffness_dependency": "<quantity>", "relationship": { "symmetric": <bool>, "values": [[dependency_value, stiffness_value], ...] } }`. `stiffness_dependency` is the quantity the stiffness varies with (e.g. `"reaction_fx"`, `"reaction_mx"`, `"displacement_rx"`); `values` is a piecewise `[x, y]` curve; `symmetric: true` mirrors the curve for negative dependency values.
 
 ```json
 {
@@ -380,6 +398,18 @@ any combination's factor and is effectively invisible to it:
 }
 ```
 
+**Simplified format** — a `direction`/`factor` pair instead of `x`/`y`/`z`, equivalent to the simple form above:
+
+```json
+{
+  "self_weight": {
+    "direction": "Y",
+    "factor": -1,
+    "LG": "SW"
+  }
+}
+```
+
 > See the [`load-combinations`](../load-combinations/SKILL.md) skill for how this ties into
 > `load_combinations` factors — a combo with an `"SW1"` factor and no matching `load_group` on
 > `self_weight` will silently apply no self-weight at all.
@@ -478,6 +508,138 @@ The key is the design code identifier. Each nested key is a load group name from
 ```
 
 > Multiple load groups can map to the same load type (e.g. several wind direction groups all mapped to `"W"`). Multiple design codes can coexist in the same `load_cases` object.
+
+---
+
+### `load_combination_settings`
+
+Settings controlling automatic generation of code-based load combinations from `load_cases`.
+
+| Key | Description |
+|---|---|
+| `country` | Country associated with the selected design code |
+| `code` | Design code (and version) used to auto-generate combinations, e.g. `"AS-1170.0-2002"` |
+| `criteria` | Which combination criteria to generate, e.g. `"All"` |
+| `filters` | UI filter selections used when generating combinations |
+| `load_case_order` | Display/generation order of load group names |
+| `patterns` | Load pattern and ratio settings (simultaneous vs alternate, main/alternate ratios) |
+| `load_case_mappings` | Maps short load group codes to full descriptive load case names |
+| `load_case_sub_groups` | Sub-group assignments (`{"name", "sub_group"}`) controlling which load groups combine together |
+
+> See the [`load-combinations`](../load-combinations/SKILL.md) skill for how this fits together with `load_combinations` and `load_cases`.
+
+---
+
+### `member_prestress_loads`
+
+Applies a prestress force to a member.
+
+```json
+{
+  "member_prestress_loads": {
+    "1": {
+      "load_group": "LG",
+      "member_id": 1,
+      "prestress_magnitude": 100
+    }
+  }
+}
+```
+
+| Key | Description |
+|---|---|
+| `load_group` | The load group to which this prestress load belongs |
+| `member_id` | The ID of the member the prestress load is applied to |
+| `prestress_magnitude` | The magnitude of the prestress force applied to the member |
+
+---
+
+### `thermal_loads`
+
+Applies a temperature change to a member or plate.
+
+```json
+{
+  "thermal_loads": {
+    "1": {
+      "element_type": "member",
+      "element_id": 13,
+      "thermal_load": 30,
+      "load_group": "TL"
+    }
+  }
+}
+```
+
+| Key | Description |
+|---|---|
+| `element_type` | `"member"` or `"plate"` |
+| `element_id` | The ID of the member or plate this thermal load is applied to |
+| `thermal_load` | The temperature change applied by this thermal load |
+| `load_group` | The load group to which this load belongs |
+
+---
+
+### `nodal_masses`
+
+Applies additional translational and rotational mass to a node, e.g. for use in dynamic frequency or response spectrum analysis.
+
+| Key | Description |
+|---|---|
+| `node_id` | The ID of the node the mass is applied to |
+| `tx_mass` / `ty_mass` / `tz_mass` | Translational mass in the global x/y/z axes |
+| `rx_mass` / `ry_mass` / `rz_mass` | Rotational mass about the global x/y/z axes |
+| `source` | Indicates how the nodal mass was generated, e.g. `"User Defined"` |
+
+---
+
+### `spectral_loads`
+
+Defines response spectrum loads used in dynamic response spectrum analysis.
+
+| Key | Description |
+|---|---|
+| `input_method` | `1` if generated via user input, `2` if by design code |
+| `design_code` | The selected design code if generated via design code (`"EN8"`, `"ASCE"`, `""`, or `null`) |
+| `design_data` | Design-code-specific inputs used to generate the spectrum |
+| `xy_data` | Values for the response spectrum XY plot: `[{ "x": period, "y": spectral_value }, ...]` |
+| `load_dir` | `"X"`, `"Y"`, `"Z"`, or `"XZ"` |
+| `load_angle` | Angle of the load if `"XZ"` was chosen for direction |
+| `load_factor` | Factor multiplier for the load |
+| `load_combo_method` | `"CQC"`, `"ABS"`, `"SRSS"`, or `"Linear"` |
+| `load_damping_ratio` | Damping ratio for this load |
+| `save_sign` | `"yes"` or `"no"` — whether to preserve the sign of results when combining modal responses |
+| `LG` | The load group this load belongs to |
+
+---
+
+### `moving_loads`
+
+Defines vehicle/moving loads for bridge/traffic-line style analysis.
+
+| Key | Description |
+|---|---|
+| `traffic_lines` | Traffic lines defining the paths along which vehicle loads travel across members |
+| `vehicle_loads` | Vehicle load definitions (axle spacings, weights, etc.) applied to traffic lines |
+| `cases` | Generated moving load cases combining vehicle loads with traffic lines |
+
+---
+
+### `suppress`
+
+Tracks which model elements are suppressed (hidden from analysis) per named suppression set, plus the currently active set. Array should include element IDs you wish to suppress.
+
+```json
+{
+  "suppress": {
+    "All On": { "members": [], "plates": [], "supports": [], "moments": [], "distributed_loads": [], "point_loads": [], "area_loads": [], "pressures": [], "load_combinations": [] },
+    "User Defined": { "members": [], "plates": [], "supports": [], "moments": [], "distributed_loads": [], "point_loads": [], "area_loads": [], "pressures": [], "load_combinations": [] },
+    "current_case": "User Defined"
+  }
+}
+```
+
+Each named set (e.g. `"All On"`, `"User Defined"`) holds arrays of suppressed IDs per element collection. `current_case` names the currently active set.
 
 ---
 
