@@ -1,3 +1,8 @@
+---
+name: analysis-results
+description: Read and interpret the SkyCiv S3D analysis results object returned after a solve — reactions, per-station member forces/stresses/displacements, plate results, min/max summaries. Use after S3D.model.solve, or when reading results client-side in an S3D App.
+---
+
 # Analysis Results Skill
 
 How to fetch, read, and interpret **S3D structural analysis results** — the object returned once
@@ -39,14 +44,17 @@ if (!S3D.solver.isSolved()) {
   // S3D.results.getAll(true, cb) returns every load combination, but may take a moment to
   // download — do the real work inside the callback, not immediately after the call.
   S3D.results.getAll(true, function () {
+    // Served from the local cache this time, not re-downloaded.
     const allResults = S3D.API.output.S3D2API(S3D.results.getAll(true));
   });
 }
 ```
 
-`S3D.results.getAll`'s first argument (`downloadAll`) controls whether results are actually
-(re-)downloaded — pass `true` unless you specifically want only what's already been downloaded,
-to avoid excessive re-downloading.
+`S3D.results.getAll`'s first argument (`downloadAll`) asks for every load combination rather than
+only the ones already held locally. Pass `true`: **the results are cached once downloaded**, so the
+second `getAll(true)` inside the callback reads the local copy and does not re-fetch. That is why
+the example calls it twice — once to trigger the download, once to read the result — and why doing
+so costs nothing.
 
 ### Reading solve messages/warnings
 
@@ -82,9 +90,28 @@ matching the id used in the model's `load_combinations` (or an auto-numbered id 
 load cases/groups/envelopes). IDs are **not necessarily sequential or starting at 1**
 (e.g. `1, 2, 8, 9, 10, 11, 12, 13, 14, 15` is a normal set — gaps are expected, matching whichever
 `load_combinations`/`load_cases`/`load_groups` ids and auto-generated envelope ids exist on that
-solve). A full worked example (10 load combinations, 16 members, 20 plates) is at
-[`assets/example1-api-format.json`](./assets/example1-api-format.json) — read it directly when you
-need real numbers to pattern-match against rather than guessing shapes.
+solve). To learn the shape rather than guess it, read
+[`assets/example1-shape.md`](./assets/example1-shape.md) (~3k tokens) — a generated
+manifest of every key, how each object is keyed, one real sample value each, and the
+shape traps that are easy to miss.
+
+The solve it describes is at
+[`assets/example1-api-format.json`](./assets/example1-api-format.json) — 10 load
+combinations, 16 members, 20 plates. At **5.6 MB (~1.37M tokens) never read it whole**,
+and note there is no safe slice either: one combination alone is ~57k tokens. Query it:
+
+```bash
+jq 'keys' assets/example1-api-format.json                    # combination ids
+jq '."1" | keys' assets/example1-api-format.json              # keys on one combination
+jq '."1".reactions' assets/example1-api-format.json           # small objects read whole
+jq '."1".member_peak_results.axial_force' assets/example1-api-format.json
+jq '."1".member_stations | map_values(length)' assets/example1-api-format.json
+jq '[.[] | {name, type, elem: has("plate_element_forces")}]' assets/example1-api-format.json
+```
+
+Regenerate the manifest with `python assets/make-shape.py` after any refresh of the
+source asset — it is generated precisely so the two cannot drift, and it raises on an
+unrecognised key rather than quietly omitting it.
 
 ```json
 {
@@ -105,7 +132,7 @@ need real numbers to pattern-match against rather than guessing shapes.
 | `member_minimums`, `member_maximums` | object | Per-member min/max summaries. Tier 2 of 3. |
 | `member_peak_results` | object | Global min/max across every member. Tier 3 of 3. |
 | `plate_displacements`, `plate_forces`, `plate_stresses` | object | Raw per corner-node plate results. Tier 1 of 3. |
-| `plate_element_forces`, `plate_element_stresses` | object | Same as above, per meshed element. Empty `{}` unless the plate has been meshed (`S3D.model.mesh`). |
+| `plate_element_forces`, `plate_element_stresses` | object \| *absent* | Same as above, per meshed element. **Not guaranteed to be present** — absent entirely on some combinations, `{}` on others, until the plates are meshed (`S3D.model.mesh`). Guard before reading; see the gotcha below. |
 | `plate_minimums`, `plate_maximums` | object | Per-plate min/max summaries. Tier 2 of 3. |
 | `plate_peak_results` | object | Global min/max across every plate. Tier 3 of 3. |
 | `buckling` | string \| object | `"disabled"` unless the solve used `analysis_type: "buckling"`. |
@@ -122,16 +149,26 @@ need real numbers to pattern-match against rather than guessing shapes.
 
 1. **Raw per-station** (`member_displacements` / `member_forces` / `member_stresses`): result key →
    member id → station position (string, 0–100% of the member's length, rounded to 1 decimal) →
-   value. Station count matches `settings.evaluation_points` (default 25).
+   a float, **or a 2-element `[left, right]` pair** at a discontinuity — see the gotcha below.
+   **Station count varies per member** and is not `settings.evaluation_points` — in the reference
+   solve it ranges from 9 to 57, rising with the member's discontinuity count. Never assume a
+   count or compute a station index from a percentage: read `member_stations["<id>"].length`, or
+   iterate the station keys of the result object itself.
 2. **Per-member min/max** (`member_minimums` / `member_maximums`): result key → member id → a
    single scalar — the min/max of that quantity anywhere along that one member.
 3. **Global min/max** (`member_peak_results`): result key → `{ "min": ..., "max": ... }` — the
    extremes across **every** member in the combination (no member id, no station).
 
-```json title="Same axial_force, all three tiers, member 1 of assets/example1-api-format.json"
+```json title="Same axial_force, all three tiers, member 1 of combination 1 in assets/example1-api-format.json"
 member_forces.axial_force["1"]["0.0"]   // -0.001           (station-level)
 member_minimums.axial_force["1"]        // -0.00139328      (per-member min)
 member_peak_results.axial_force         // {"min": -0.00267385, "max": 0.427625}   (global)
+
+// Member 1 has two discontinuities, so some of its stations hold a [left, right] pair —
+// and only for the quantities that actually step there:
+member_forces.axial_force["1"]["33.3"]        // [-0.001, 0.003]
+member_forces.shear_force_y["1"]["33.3"]      // [-0.057, 0.047]
+member_forces.bending_moment_z["1"]["33.3"]   // -0.004   (continuous — still a scalar)
 ```
 
 | Object | Keys |
@@ -146,8 +183,8 @@ Supporting per-member data (not results, but needed to interpret them):
 | Key | Shape | Description |
 |---|---|---|
 | `member_lengths` | member id → float | Member length. |
-| `member_stations` | member id → `[float]` | The exact station positions (0–100%) the raw results are evaluated at. |
-| `member_discontinuities` | member id → integer | Count of internal discontinuity points detected along the member (e.g. from a mid-span point load) — a count, not an array of positions. |
+| `member_stations` | member id → `[float]` | The exact station positions (0–100%) the raw results are evaluated at. **Length varies per member** and is not `settings.evaluation_points` — this array is the authoritative station count for a member; don't derive one. |
+| `member_discontinuities` | member id → integer | Count of internal discontinuity points detected along the member (e.g. from a mid-span point load) — a count, not an array of positions. Governs both how many stations the member has and whether any of its station values are `[left, right]` pairs. |
 
 ### Plate results — the same three tiers
 
@@ -184,12 +221,32 @@ keyed per meshed element instead of per corner node.
 - **User-defined combinations report `type: "user_defined"`**, not `"load_combo"` — despite
   `lc_filter` accepting `"load_combo"` as a filter keyword. Same filter-in/name-or-type-out
   mismatch as above.
+- **A station value can be a `[left, right]` pair, not a number.** Where a member has a
+  discontinuity (a mid-span point load, an intermediate support), that station holds the value
+  either side of the step — `member_forces.shear_force_y["1"]["33.3"]` is `[-0.057, 0.047]`. It
+  varies *per result key* at the same station: `shear_force_y` and `axial_force` jump there while
+  `bending_moment_z` stays continuous and scalar. 2,254 station values across the reference
+  solve's ten combinations are pairs (190–261 in each), always on the six members with
+  `member_discontinuities > 0` — except combination `10`, which has none at all. So don't
+  feature-detect on one combination: a series that is all scalars there can hold pairs in the
+  next. This fails silently rather
+  than loudly — `Math.max(...Object.values(series))` returns `NaN`, and `value > limit` coerces
+  instead of throwing. Flatten the pairs first, or read `member_minimums`/`member_maximums`, which
+  are always scalars.
 - **`member_discontinuities` is a count, not a results array** — despite sitting alongside
   per-station result objects, `member_discontinuities["<id>"]` is a single integer (how many
-  discontinuity points were detected along that member), not a station-keyed object.
-- **`plate_element_forces`/`plate_element_stresses` are commonly empty (`{}`)** — they only
-  populate once the model's plates have been meshed (`S3D.model.mesh`); an unmeshed model (like
-  the reference asset) reports plate results only at corner nodes.
+  discontinuity points were detected along that member), not a station-keyed object. Treat it as a
+  flag rather than a formula: a member with a non-zero count has more stations than a plain one
+  (**not** `settings.evaluation_points`, and not the same number as its neighbours) and may carry
+  `[left, right]` pairs. For the actual count, read `member_stations["<id>"].length`.
+- **`plate_element_forces`/`plate_element_stresses` may be missing, not merely empty.** They
+  populate only once the model's plates have been meshed (`S3D.model.mesh`), but an unmeshed solve
+  is inconsistent about how it says so: in the reference asset the keys are **absent entirely**
+  from the four `user_defined` combinations and present as `{}` on the six load-case, load-group
+  and envelope ones. So `Object.keys(combo.plate_element_forces)` throws a `TypeError` on exactly
+  the combinations you are most likely to read first — guard with `?.` or `|| {}`. The same holds
+  for any key dropped by `result_filter` on a solve: **no key in the table above is guaranteed to
+  be present.**
 - **Reactions only list supported nodes.** Don't iterate a model's full node list expecting a
   reaction entry for each — nodes without a support are simply absent as keys.
 - **Station keys are rounded strings, not the raw floats in `member_stations`.** `member_stations`

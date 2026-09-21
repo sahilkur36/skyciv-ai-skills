@@ -488,6 +488,8 @@ const currentResults = S3D.API.output.S3D2API(S3D.results.get());
 
 // S3D.results.getAll(true, cb) covers every load combination but may take a moment to download.
 S3D.results.getAll(true, function () {
+    // Results are cached once downloaded, so this second call reads the local copy
+    // rather than re-fetching — calling it twice costs nothing.
     const allResults = S3D.API.output.S3D2API(S3D.results.getAll(true));
     // ... read allResults["1"].member_peak_results, .reactions, etc.
 });
@@ -496,6 +498,10 @@ S3D.results.getAll(true, function () {
 See the [`analysis-results`](../analysis-results/SKILL.md) skill for the full results object
 schema (reactions, per-station member/plate results, min/max summaries, gotchas), and
 `S3D.solver.getLastSolveInfo()` for the solver's info/warning messages from the last solve.
+Three traps in that object are worth knowing before you write any loop over it: a station value
+can be a `[left, right]` pair rather than a number where a member has a discontinuity, station
+counts vary per member, and `plate_element_forces`/`plate_element_stresses` can be absent rather
+than empty. All three are covered there.
 
 ---
 
