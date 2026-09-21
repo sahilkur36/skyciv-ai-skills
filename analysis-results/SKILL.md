@@ -90,28 +90,12 @@ matching the id used in the model's `load_combinations` (or an auto-numbered id 
 load cases/groups/envelopes). IDs are **not necessarily sequential or starting at 1**
 (e.g. `1, 2, 8, 9, 10, 11, 12, 13, 14, 15` is a normal set — gaps are expected, matching whichever
 `load_combinations`/`load_cases`/`load_groups` ids and auto-generated envelope ids exist on that
-solve). To learn the shape rather than guess it, read
-[`assets/example1-shape.md`](./assets/example1-shape.md) (~3k tokens) — a generated
-manifest of every key, how each object is keyed, one real sample value each, and the
-shape traps that are easy to miss.
-
-The solve it describes is at
-[`assets/example1-api-format.json`](./assets/example1-api-format.json) — 10 load
-combinations, 16 members, 20 plates. At **5.6 MB (~1.37M tokens) never read it whole**,
-and note there is no safe slice either: one combination alone is ~57k tokens. Query it:
-
-```bash
-jq 'keys' assets/example1-api-format.json                    # combination ids
-jq '."1" | keys' assets/example1-api-format.json              # keys on one combination
-jq '."1".reactions' assets/example1-api-format.json           # small objects read whole
-jq '."1".member_peak_results.axial_force' assets/example1-api-format.json
-jq '."1".member_stations | map_values(length)' assets/example1-api-format.json
-jq '[.[] | {name, type, elem: has("plate_element_forces")}]' assets/example1-api-format.json
-```
-
-Regenerate the manifest with `python assets/make-shape.py` after any refresh of the
-source asset — it is generated precisely so the two cannot drift, and it raises on an
-unrecognised key rather than quietly omitting it.
+solve). A full worked solve — 10 combinations, 16 members, 20 plates — is at
+[`assets/example1-api-format.json`](./assets/example1-api-format.json). Every shape and
+number in this skill is taken from it, so the tables below are the fastest way to read it.
+At **5.6 MB (~1.37M tokens) never open the file**, and there is no safe slice either — one
+combination alone is ~57k tokens. If you need a value the tables do not give, print just that
+path with a one-line script; never open the file to find it.
 
 ```json
 {
@@ -269,3 +253,12 @@ keyed per meshed element instead of per corner node.
   [`S3D.results.getAnalysisReport`](../s3d-api/SKILL.md#s3dresultsgetanalysisreport) — a separate,
   much slower call; don't bundle it into a normal analyze/results pipeline (see the caution in
   `s3d-api`).
+
+---
+
+<!-- Maintainers only — not part of the agent workflow. -->
+**Refreshing this skill.** `assets/make-shape.py` walks the whole reference asset and prints a
+shape manifest (every key, how each object is keyed, sample values, the pair/station counts quoted
+above). Run it after the asset is refreshed or the API changes, fold anything new into the tables
+here, then delete its output — it is gitignored. Don't run it as part of reading this skill: the
+tables above already carry everything it finds, at a third of the tokens.

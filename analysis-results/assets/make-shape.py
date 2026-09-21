@@ -1,19 +1,24 @@
-"""Regenerate example1-shape.md from example1-api-format.json.
+"""Print a shape manifest for example1-api-format.json - a maintainer's tool.
 
-The reference solve is ~5.6 MB (~1.37M tokens) - far too large for any agent to
-read into context, and there is no slice of it that is safe to read whole: a
-single load combination is ~57k tokens on its own.
+The reference solve is ~5.6 MB (~1.37M tokens), far too large to open, and no
+slice of it is safe either: one load combination is ~57k tokens. This walks the
+whole file and writes ~3k tokens describing it - every key, how each object is
+keyed, one real sample value each, and the shape traps.
 
-So this emits a SHAPE MANIFEST instead: every key name, how each object is keyed,
-and one real sample value per object, in ~1-2k tokens. It is orientation, not
-data. Once you know the shape, query the source file for actual numbers - see the
-probe recipe in ../SKILL.md.
+**Its output is not committed, and agents reading this skill should not run it.**
+../SKILL.md already carries everything the manifest found, in a third of the
+tokens and without a tool call; an agent that generates and reads this on top of
+the skill roughly doubles its context for no new information. Run it yourself
+when the source asset is refreshed or the API changes, then fold anything new
+into ../SKILL.md by hand and delete the output.
 
-Everything here is derived from the source file at generation time, so the
-manifest cannot drift from it the way a hand-written summary would. A renamed or
-added key raises KeyError below rather than being silently dropped.
+It exists because it is the cheapest way to re-verify the whole asset at once:
+an added or renamed key raises KeyError below rather than being silently
+dropped, and the pair/station counts it reports are what the SKILL.md gotchas
+quote. Three of the four errors corrected in the 2026-09-21 changelog entry were
+found by running it.
 
-Usage:  python make-shape.py
+Usage:  python make-shape.py     # writes example1-shape.md next to this script
 """
 import json
 import os
@@ -157,8 +162,9 @@ def main():
         "",
         "**Shape only** - key names, how each object is keyed, one real sample value each.",
         "For actual numbers, query the source file; it is ~1.37M tokens and must never be",
-        "read whole. Sample paths below are jq paths within one combination, e.g.",
-        "`jq '.%s1%s.reactions.%s1%s.Fy' example1-api-format.json`." % (Q, Q, Q, Q),
+        "read whole - print just the path you need. Sample paths below are written from",
+        "one combination down, e.g. `reactions.%s1%s.Fy` is node 1's Fy reaction" % (Q, Q),
+        "within combination `%s`." % ref_id,
         "",
         "## Load combinations",
         "",
