@@ -37,7 +37,7 @@ load-combinations      → factor those loads into code-correct combinations on 
   ↓
 s3d-api                → solve
   ↓
-analysis-results       → fetch and interpret the results, then run-quick-design for member/connection checks
+analysis-results       → fetch and interpret the results, then run-quick-design / baseplate for member/connection checks
   ↓
 renderer               → visualize the model and results
   ↓
@@ -52,6 +52,7 @@ qa-engineer            → independent review of the results
 - `cloudcad-api` — 2D CAD drawing schema; `cloudcad.model` and `cloudcad.file` namespaces; can map into an S3D model.
 - `load-gen-api` — wind/snow/seismic lookups via `standalone.loads`. Always open the session with `standalone.loads.start`, not `S3D.session.start` — confirmed against the live API that the latter breaks `standalone.loads.getLoads` (a generic, non-obvious failure on the *second* call, not on session start itself). If an app needs both an S3D model and a load-gen-api lookup, run them as separate sessions, each with its own matching `*.start` call.
 - `load-combinations` — documentation-only skill for the `s3d_model` load-combination data model (`load_combinations`, `load_cases`, `load_combination_settings`) and code-correct combination sets; no API namespace of its own — combos are written directly into the model consumed by `s3d-api`, with the `7000-load-combination-generator` Quick Design calculator as an optional generator.
+- `baseplate` — steel column base plate / anchor bolt / weld design via `standalone.baseplate`. Opens with its own `standalone.baseplate.start` (a check after `S3D.session.start` is rejected). Per-code value lists and `factors` live in `baseplate/references/<code>.md`, loaded only for the chosen `design_code`. Consumes base forces from an `s3d-api` solve (via `analysis-results`) as its `loads`. Live-verified behaviour worth knowing before touching it: invalid grade/diameter strings are silently replaced with defaults (`status: 0`), and a failing `detailing` check or a non-zero `My` hangs the call to the ~45 s timeout instead of returning an error.
 - `run-quick-design` — a separate REST endpoint (`POST https://qd.skyciv.com/run`, its own API-token auth, not the `skyciv-api-v3` envelope) that runs any of 154 standalone calculators by UID.
 - `build-quick-design-calculator` — the authoring counterpart to `run-quick-design`: how to write a Quick Design **calc pack** (`config.json` input form, `calculate.js` logic/report, `ui.js` graphics, optional `s3d_integration.js`) and upload it to the Build Your Own Calculator builder. No API auth or envelope — the code runs on SkyCiv's servers. Full SkyCiv Quick Design docs are bundled under its `assets/documentation/`.
 - `renderer` — client-side JS library (`SKYCIV.renderer`), not a server API; visualizes an `s3d_model` fetched via the API.
