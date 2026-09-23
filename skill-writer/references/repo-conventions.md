@@ -19,7 +19,7 @@ Structured Markdown that teaches an agent to correctly call the SkyCiv API inste
 
 ## Frontmatter style actually used in this repo
 
-Some `SKILL.md` files have frontmatter (`name`, `description`, optionally `argument-hint`) so harnesses can discover them; documentation-only foundational skills (`skyciv-api-v3`, `s3d-api`, `cloudcad-api`, `load-gen-api`, `run-quick-design`) currently omit it. Match the style of the skill you're editing rather than imposing frontmatter where the sibling skills don't use it, unless the user asks for it specifically.
+Some `SKILL.md` files have frontmatter (`name`, `description`, optionally `argument-hint`) so harnesses can discover them; documentation-only foundational skills (`skyciv-api-v3`, `s3d-api`, `load-gen-api`, `run-quick-design`) currently omit it. Match the style of the skill you're editing rather than imposing frontmatter where the sibling skills don't use it, unless the user asks for it specifically.
 
 Where frontmatter is used, `description` is written long, dense, and pushy — quoted YAML string, third-person imperative ("Use when..."), enumerating field names/namespaces/call names the skill covers plus plain-language phrasings a user might use without saying "SkyCiv" (see `baseplate/SKILL.md` and `qa-engineer/SKILL.md` for the pattern). This matches — and predates — the generic spec's own description guidance in `description-optimization.md`.
 

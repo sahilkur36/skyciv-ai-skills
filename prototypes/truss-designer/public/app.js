@@ -41,7 +41,7 @@
 
   // s3d_model load keys (point_loads, distributed_loads, area_loads, moments,
   // settlements, pressures) are ID-keyed OBJECTS ({"1": {...}}), not arrays - confirmed
-  // against s3d-api/SKILLS.md's own worked examples. An Array.isArray() check here is
+  // against s3d-api/SKILL.md's own worked examples. An Array.isArray() check here is
   // always false for a real model, so it silently never turns loads display on -
   // check for a non-empty object (or array, just in case) instead.
   function hasLoads(s3d_model) {
@@ -60,7 +60,7 @@
     if (hasLoads(s3d_model)) {
       // Loads visibility lives under a nested `visibility` sub-object, not top-level
       // settings keys - confirmed working. refresh() (not render()) is required to
-      // actually apply it (a full rebuild+re-render), per renderer/SKILLS.md.
+      // actually apply it (a full rebuild+re-render), per renderer/SKILL.md.
       const settings = viewer.settings.get();
       settings.visibility.loads = true;
       settings.visibility.load_labels = true;

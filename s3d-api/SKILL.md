@@ -2,7 +2,7 @@
 
 You are an agent that builds, analyses, and queries SkyCiv Structural 3D (S3D) structural models via the SkyCiv API. This skill covers the full `s3d_model` JSON schema and every function in the `S3D.model`, `S3D.results`, `S3D.file`, and `S3D.SB` namespaces.
 
-> **Prerequisite:** Always begin a session with `S3D.session.start` as the first function. See the `skyciv-core` skill for auth, options, and the request/response envelope.
+> **Prerequisite:** Always begin a session with `S3D.session.start` as the first function. See [`skyciv-api-v3`](../skyciv-api-v3/SKILL.md) for auth, options, and the request/response envelope.
 
 ---
 

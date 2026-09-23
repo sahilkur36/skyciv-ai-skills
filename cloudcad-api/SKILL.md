@@ -1,1167 +1,220 @@
-# Draftsperson Agent Skill (CAD API)
-
-You are an agent that creates and manages SkyCiv CloudCAD drawings via the SkyCiv API. This skill covers the full CAD JSON schema and the `cloudcad.model` and `cloudcad.file` API namespaces.
-
-> **Prerequisite:** Always begin a session with `S3D.session.start` as the first function. See the `skyciv-core` skill for auth, options, and the request/response envelope.
-
+---
+name: cloudcad-api
+description: "Use when generating or saving a 2D engineering drawing through the SkyCiv CloudCAD API — building the cad_data JSON for cloudcad.model.create and saving it with cloudcad.file.save. Covers canvases, lines, polylines (circles/arcs), linear/angle/radius dimensions, leader and multi-leader text, text, tables, axes/gridlines, construction lines, revision clouds, hatches, images, layers, blocks (blockReferences/block_instances), attributeStyles sizing, pdfExport pages and the default A2 page + title block, units (canvasLengthUnits) and the y-negative-up coordinate system. Trigger even without the word SkyCiv or CAD, e.g. 'draft a plan/elevation/section of this', 'produce a drawing sheet with a title block', 'dimension this truss', 'turn this S3D model into a drawing', 'add a revision cloud', 'export a drawing from my app'. Not for 3D structural models or analysis (use s3d-api), not for 3D visualisation (use renderer), and not for reading a floor-plan image (use schema-agent)."
 ---
 
-## CAD Data Format Overview
+# CloudCAD API — 2D drawings
 
-A CAD model is a JSON object with this top-level structure:
+Build a CloudCAD drawing as a JSON object (`cad_data`), send it with `cloudcad.model.create`, then
+store it with `cloudcad.file.save`. This skill covers the `cad_data` schema and the
+`cloudcad.model` / `cloudcad.file` namespaces.
+
+> **Prerequisite:** auth, `options` and the `{ auth, options, functions }` envelope are in
+> [`skyciv-api-v3`](../skyciv-api-v3/SKILL.md). **No `S3D.session.start` is needed.**
+> `cloudcad.model.create` opens its own CloudCAD session (verified: without it, create returns
+> *"CloudCAD session successfully created."* and a following `save` works). Adding
+> `S3D.session.start` first does no harm but adds about 6 s.
+
+**Units:** every coordinate and every length setting is **real-world millimetres**, whatever
+`settings.canvasLengthUnits` says. That setting (`"mm"`, `"cm"`, `"m"`, `"ft"`, `"in"`) only
+changes how dimension **labels** are displayed. Verified: a 7315.2 mm line with
+`canvasLengthUnits: "ft"` is labelled `24.0 ft`.
+
+## Workflow
+
+1. **Draw at true size, in mm, with y negative going up** (see Coordinates). Never scale geometry
+   to fit a page.
+2. **Pick a plot scale and size the `attributeStyles` for it.** Every length-valued style setting
+   is *printed mm × scale*, e.g. `dimensionTextSize: 378` at 1:100 prints at 3.78 mm (see Sizing).
+3. **Wrap the drawing in the default page + title block**, unless the user asked for bare
+   geometry. Translate the content into the template's safe zone; do not scale it. See
+   [`references/pages-and-title-blocks.md`](references/pages-and-title-blocks.md).
+4. **Lint, then send** `cloudcad.model.create` + `cloudcad.file.save` in one request.
+   `create` accepts **anything** and returns `status: 0`, even `{}` or `{"canvases": "nope"}`, so a
+   `status: 0` proves nothing. Run the linter (Bundled tools) and look at a render (Verifying).
+5. Give the user the `data` URL returned by `save`.
+
+In Node, `scripts/cad_helpers.js` does steps 2–4: `emptyCanvas`, `text`, `hatch`,
+`rectCloud`/`revisionCloud`, `attributeStyle(plotScale)`,
+`wrapInTitleBlock({ canvas, plotScale })` and `lint(cad_data)`.
+
+## `cad_data` structure
 
 ```json
 {
-  "settings": { ... },        // global display/snap/unit settings
-  "s3d": { ... },             // optional: structural 3D export mapping
-  "attributeStyles": [ ... ], // dimension/text/leader/axis sizing styles
-  "blockReferences": [ ... ], // block DEFINITIONS (reusable groups, e.g. title blocks) - see "Blocks" below
-  "pdfExport": { ... },       // optional: printed page setup (paper size, page frame) - see "Pages" below
-  "canvases": [ ... ]         // array of drawing sheets
+  "settings": { "canvasLengthUnits": "mm" },
+  "attributeStyles": [ { "id": "as-default", "name": "Default", "settings": { } } ],
+  "blockReferences": [ ],
+  "pdfExport": { "pdfPages": [ ] },
+  "s3d": { },
+  "canvases": [ { "name": "Plan", "lines": [ ], "dimensions": [ ], "texts": [ ] } ]
 }
 ```
 
-This object is passed to `cloudcad.model.create` as `cad_data`.
-
-> **`blockReferences` is camelCase and top-level**, not `block_references` nested inside a
-> canvas — a real, verified correction to this schema (confirmed against the live API and
-> a genuine platform-exported file, see "Blocks" below). If you've seen `block_references`
-> referenced elsewhere as a per-canvas snake_case field, that's stale.
-
----
-
-## `settings`
-
-Controls display, units, snapping, and colors. All fields optional — defaults applied for any omitted values.
-
-| Key | Type | Description |
+| Key | Required | What it is |
 |---|---|---|
-| `canvasLengthUnits` | `string` | `"mm"`, `"cm"`, `"m"`, `"ft"`, `"in"` |
-| `gridSize` | `string` | Grid spacing value |
-| `snapToGrid` | `bool` | Snap to grid |
-| `snapToPoint` | `bool` | Snap to existing points |
-| `snapToLineEnds` | `bool` | Snap to line endpoints |
-| `snapToLineMid` | `bool` | Snap to line midpoints |
-| `snapToAlign` | `bool` | Alignment guide snapping |
-| `snapToAxis` | `bool` | Axis snapping |
-| `showGrid` | `bool` | Show background grid |
-| `showAxis` | `bool` | Show axis lines |
-| `showVertices` | `bool` | Show vertex markers |
-| `showCreatedDimensions` | `bool` | Show user-created dimensions |
-| `showSelectionDimensions` | `bool` | Show dimensions on selection |
-| `canvasBackgroundColor` | `string` | Hex background color |
-| `lineColor` | `string` | Default line color |
-| `pointColor` | `string` | Default point color |
-| `dimensionsColor` | `string` | Dimension label color |
-| `selectionColor` | `string` | Selected item color |
-| `highlightColor` | `string` | Hover/highlight color |
-| `dimensionTextSize` | `string` | Font size for dimension labels |
-| `globalDimsScale` | `string` | Global dimension display scale |
-| `globalTextScale` | `string` | Global text display scale |
-| `arcSegments` | `string` | Segment count for arc rendering |
-| `circleSegments` | `string` | Segment count for circle rendering |
-
----
-
-## `attributeStyles`
-
-**Always include this field.** Defines named styles for all annotation sizing: dimensions, text, leader texts, and axes. Elements reference a style by `attributeStyleId`. Without a style, annotations render at tiny default sizes that may not suit your drawing scale.
-
-Define at least one style (conventionally `"id": "as-default"`) and reference it on every annotation element.
-
-```json
-"attributeStyles": [
-  {
-    "id": "as-default",
-    "name": "Default Style",
-    "settings": {
-      "linearArrowShape": "arrow",
-      "linearArrowLength": 216,
-      "linearArrowWidth": 216,
-      "linearExtLineStartOffset": 0,
-      "linearExtLineEndOffset": 0,
-      "linearTextOffset": 0,
-      "linearTextHorizontalOffset": 0,
-      "linearTextHorizontalPosition": "center",
-      "dimensionTextSize": 378,
-      "angleArrowShape": "arrow",
-      "angleArrowLength": 216,
-      "angleArrowWidth": 216,
-      "angleDimensionTextSize": 378,
-      "angleTextOffset": 600,
-      "angleTextOrientation": "horizontal",
-      "radiusArrowShape": "arrow",
-      "radiusArrowLength": 216,
-      "radiusArrowWidth": 216,
-      "radiusDimensionTextSize": 378,
-      "radiusTextOffset": 0,
-      "leaderArrowShape": "arrow",
-      "leaderArrowLength": 216,
-      "leaderArrowWidth": 216,
-      "leaderTextSize": 378,
-      "leaderTextOffsetHorizontal": 0,
-      "leaderTextOffsetVertical": 0,
-      "axisExtension": 5000,
-      "axisCircleDiameter": 1080,
-      "axisTextSize": 324,
-      "axisDashLength": 216,
-      "axisDashGap": 108,
-      "textSizeInput": 14,
-      "textSizeOverride": false,
-      "fontFamily": "monospace",
-      "tableFontSize": 400
-    }
-  }
-]
-```
-
-All length values are in **mm** and should scale with your drawing. The values above are suitable for a building-scale drawing (rooms in the thousands of mm). For small drawings (e.g. cross-sections at ~100 mm), divide all length values by ~10.
-
-`linearArrowShape` / `angleArrowShape` / `radiusArrowShape` / `leaderArrowShape`: `"arrow"`, `"dot"`, `"architectural"`, `"none"`.
-
-`axisDashLength` / `axisDashGap` control the dash-dot line pattern axes render with (the
-standard drafting convention for gridlines/centerlines — a long dash, a gap, then a short
-dash) — `axisDashLength` is the length of each dash segment, `axisDashGap` is the gap
-between segments, both in mm. This is a property of the **axis line itself**, distinct
-from `lineType` on a `Layer` (see "Layers" below), which controls dash style for ordinary
-lines/polylines.
-
-A real platform-exported style also carries per-dimension-type label formatting fields, confirmed from a live export — all optional, omit to use platform defaults:
-
-| Key pattern (`linear`/`angle`/`radius`) | Type | Description |
-|---|---|---|
-| `{type}Prefix` / `{type}Suffix` | `string` | Text before/after the dimension value, e.g. `"R"` prefix for radius labels |
-| `{type}Precision` | `number` | Decimal places shown |
-| `{type}DecimalSep` | `string` | Decimal separator, e.g. `"."` |
-| `{type}RoundOff` | `number` | Round the displayed value to the nearest multiple of this |
-| `{type}ToleranceType` | `string` | `"none"` or a tolerance display mode |
-| `{type}ToleranceUpper` / `{type}ToleranceLower` | `number` | Tolerance band shown alongside the value |
-| `linearShowUnits` / `radiusShowUnits` | `string` | `"yes"` / `"no"` — show the unit suffix on the label |
-| `angleUnitFormat` | `string` | `"decimal"` (seen in a real export); degrees-minutes-seconds format is presumably also supported but not confirmed |
-| `angleAltUnits` | `string` | `"none"` (seen in a real export) — alternate unit display, not otherwise confirmed |
-
-Elements that accept `"attributeStyleId"`: `dimensions`, `angleDimensions`, `radiusDimensions`, `leaderTexts`, `multiLeaderTexts`, `texts`, `axes`, `tables`.
-
-> **Supporting more than one plot scale? Scale the style, never the geometry.** If your
-> drawing generator picks between plot scales (e.g. 1:50 for a small object, 1:100 for a
-> larger one that wouldn't fit at 1:50 — see "Never scale model geometry" below for why
-> geometry itself must always stay true mm), define `attributeStyles` per plot scale by
-> multiplying every length-valued setting (`dimensionTextSize`, `linearArrowLength`/
-> `linearArrowWidth`, `angleTextOffset`, `axisExtension`, `axisDashLength`/`axisDashGap`,
-> `tableFontSize`, etc. — anything measured in mm, not a string enum) by
-> `k = chosenScale / baselineScale`. Apply that same `k` to any reused page furniture
-> (title block border, table) too. This keeps arrows, dimension text, and the title block
-> at one constant *physical* size on the printed sheet no matter which plot scale a given
-> drawing ends up using — confirmed working in a generator that adaptively picks between
-> two plot scales per install.
-
----
-
-## `s3d` (Structural 3D Mapping)
-
-Optional. Use when the CAD drawing maps to a structural model.
-
-```json
-{
-  "s3d": {
-    "settings": {
-      "units": "mm",
-      "tolerance": 0.0001,
-      "connect_floors_by_columns": false,
-      "connect_floors_section_id": null,
-      "remove_duplicate_members": true,
-      "supports_only_base": true,
-      "ignore_unassigned_sections": false
-    },
-    "sections": {},
-    "elevations": [
-      { "canvas_id": 0, "elevation": 0 }
-    ]
-  }
-}
-```
-
----
-
-## `canvases`
-
-An array of canvas (drawing sheet) objects. Each canvas is a self-contained drawing.
-
-```json
-{
-  "version": "2.0.0",
-  "schema": "canvas-json-v2-optimized",
-  "name": "Canvas 1",
-  "drawing_type": "Plan",
-  "is_base": true,
-  "points": [],
-  "lines": [],
-  "polylines": [],
-  "dimensions": [],
-  "angleDimensions": [],
-  "radiusDimensions": [],
-  "leaderTexts": [],
-  "multiLeaderTexts": [],
-  "texts": [],
-  "tables": [],
-  "axes": [],
-  "constructionLines": [],
-  "revisionClouds": [],
-  "hatches": [],
-  "images": [],
-  "block_instances": [],
-  "layers": [],
-  "s3d": {}
-}
-```
-
-Note: `attributeStyles` and `blockReferences` are **top-level** fields on the root object
-(alongside `settings` and `canvases`), not inside each canvas — a canvas only places
-blocks via `block_instances`, it doesn't define them. A per-canvas `"block_references"`
-(snake_case) array can also appear — in a genuine platform-exported file this was **not**
-empty, but a denormalized copy of the top-level `blockReferences` entries (same `id`s,
-plus extra UI-only fields like `sourceLibraryUid`/`sourceBlockId` and per-item
-`layerIds`). It's still not authoritative and safe to omit or leave as `[]` when creating
-a drawing programmatically — always write block definitions to the top-level
-`blockReferences` only.
-
-`drawing_type`: `"Plan"`, `"Elevation"`, etc.  
-All array fields must be present (use `[]` if empty).
-
-A real export also carries extra top-level/per-canvas fields the platform writes on
-save/open that aren't needed when creating a drawing via the API: a root `"comments":
-[]` array, a per-canvas `"pdfExport"` (mirrors the root-level one described below —
-UI dialog state, not required), a per-canvas `"s3d"` object holding unrelated UI-dismiss
-flags (e.g. `auto_schedule_table_dismissed`, distinct from the root `s3d` structural
-mapping described above), grouping metadata arrays (`points_group`, `edges_group`,
-`sections_group`), and a `"canvas_group"` object (`role`, `group_id`,
-`parent_canvas_id`, `color_id`) describing multi-canvas relationships. Safe to omit
-these when constructing `cad_data` from scratch — they default correctly — but don't
-be alarmed if they appear when you `cloudcad.file.open` an existing drawing and read
-its JSON back.
-
----
-
-## Canvas Element Types
-
-### Points
-
-```json
-{ "x": 100, "y": 200, "id": "uuid" }
-```
-
-`id` is optional — auto-generated if omitted.
-
----
-
-### Lines
-
-A straight segment between two points.
-
-```json
-{
-  "p1": { "x": 0, "y": 0 },
-  "p2": { "x": 1000, "y": 0 },
-  "id": "uuid",
-  "groupId": "uuid"
-}
-```
-
-> To form a closed polygon, give multiple lines the same `groupId` and ensure their endpoints connect.
-
----
-
-### Polylines
-
-#### Circle
-
-```json
-{
-  "type": "circle",
-  "center": { "x": 0, "y": 0 },
-  "radius": 500,
-  "radiusPoint": { "x": 500, "y": 0 },
-  "segments": 100,
-  "id": "uuid"
-}
-```
-
-#### Arc
-
-Defined by start, end, and a control point on the arc.
-
-```json
-{
-  "type": "arc",
-  "points": [
-    { "x": 0,   "y": 0 },
-    { "x": 100, "y": 100 },
-    { "x": 50,  "y": 80 }
-  ],
-  "segments": 100,
-  "id": "uuid"
-}
-```
-
----
-
-### Dimensions (Linear)
-
-![Linear dimension anatomy: p1/p2 mark the measured segment, offsetPoint sets how far the dimension line floats and where its value text sits](assets/images/dimension-linear.svg)
-
-```json
-{
-  "p1": { "x": 0, "y": 0 },
-  "p2": { "x": 1000, "y": 0 },
-  "offsetPoint": { "x": 500, "y": 200 },
-  "id": "uuid",
-  "projectionType": "horizontal",
-  "attributeStyleId": "as-default"
-}
-```
-
-`projectionType`: `"vertical"`, `"horizontal"`, or omit for auto.  
-Always include `attributeStyleId` so arrow and text sizes are correct.
-
-> **Only horizontal/vertical projections are supported** — passing `p1`/`p2` for a
-> tilted (non-axis-aligned) measurement silently falls back to a non-tilted dimension
-> with the wrong value, instead of erroring. Confirmed the hard way building an MT Solar
-> rail-length dimension along a tilted panel. To dimension a true diagonal/tilted
-> distance, don't use this entity — build it from primitives instead: two short
-> `leaderText` extension ticks (style `"as-plain-ext"` for no arrowhead) off the two
-> measured points, projected out perpendicular to the tilt, plus a `leaderText`
-> dimension line parallel to the tilt with a value label you compute and format
-> yourself (so it always matches the real geometry, since nothing here calculates it
-> for you).
-
----
-
-### Angle Dimensions
-
-Measures the angle between two lines that share a common vertex. Confirmed from a real platform-exported file.
-
-![Angle dimension anatomy: l1 and l2 share the intersection vertex, p sets both the arc radius and the label position](assets/images/dimension-angle.svg)
-
-```json
-{
-  "l1": {
-    "p1": { "x": -5980, "y": -2400 },
-    "p2": { "x": -7260, "y": -680 }
-  },
-  "l2": {
-    "p1": { "x": -8360, "y": -2400 },
-    "p2": { "x": -5980, "y": -2400 }
-  },
-  "intersection": { "x": -5980, "y": -2400 },
-  "p": { "x": -5760, "y": -1060 },
-  "id": "uuid",
-  "attributeStyleId": "as-default"
-}
-```
-
-- `l1` / `l2`: the two lines forming the angle, each a `{p1, p2}` pair. One endpoint of `l1` and one endpoint of `l2` must equal `intersection` — the shared vertex the angle is measured at.
-- `intersection`: the vertex point shared by both lines.
-- `p`: where the angle arc and its label are drawn — a point out from the vertex, roughly between the sweep of the two lines. Analogous to `offsetPoint` on a linear dimension.
-- Always include `attributeStyleId` — the style's `angleArrowShape`, `angleDimensionTextSize`, `angleTextOffset`, and `angleTextOrientation` fields control its display.
-
-> **Three non-obvious behaviors, confirmed building a tilt-angle dimension for an
-> MT Solar elevation:**
-> - **`p`'s distance from `intersection` sets the arc's radius** — CloudCAD draws the
->   arc, and each ray's extension tick, out to `p`'s distance from the vertex, *not*
->   out to `l1`/`l2`'s own `p2` endpoints. If you want a ray's tick to land exactly on
->   a real geometry point (e.g. a panel corner), set `p`'s distance from `intersection`
->   equal to that point's distance from `intersection` — don't just eyeball `p`'s
->   position.
-> - **Sweep direction depends on which way `l1` points, not just its angle.** Swapping
->   `l1`'s ray to point the opposite way (same line, reversed) swept the arc through the
->   *supplement* of the intended angle (e.g. `180° - tilt` instead of `tilt`) even though
->   `l2` and `intersection` were unchanged. `l1` needs to point the same rotational way
->   as `l2`'s sweep for the drawn angle to match the real one.
-> - **Anchor at least one ray to a real geometry point**, not a virtual/constructed one —
->   otherwise the dimension doesn't visually read as connecting to anything. If neither
->   line's other endpoint is naturally a real point, compute `intersection` by projecting
->   *back* from a real point along its true line/slope (not by dropping it straight down
->   or across), so the ray's far endpoint stays exact.
-
----
-
-### Radius Dimensions
-
-Present in the canvas schema (`"radiusDimensions": []`) and accepted in the `attributeStyleId` list, but **no populated example has been found in a live export yet** — both `assets/all-elements.json` and `assets/Title-Block-Example.json` show it only as an always-empty array. Don't guess this element's field structure (see the "Never scale model geometry..." warning above for why this skill treats unverified schema as a real risk, not a formality). Before generating one programmatically, round-trip test it: create a radius dimension manually in the CloudCAD UI, save, `cloudcad.file.open` it back, and read the resulting JSON to confirm the real field names.
-
----
-
-### Leader Texts
-
-An arrow pointing from a location to a text label.
-
-```json
-{
-  "startPoint": { "x": 0,   "y": 0 },
-  "endPoint":   { "x": 200, "y": 100 },
-  "text": "Column C1",
-  "id": "uuid",
-  "attributeStyleId": "as-default"
-}
-```
-
----
-
-### Multi-Leader Texts
-
-Text annotation with multiple arrow leaders.
-
-```json
-{
-  "anchorPoint": { "x": 0, "y": 0 },
-  "arrowPoints": [
-    { "x": -100, "y": -50 },
-    { "x":  100, "y":  50 }
-  ],
-  "text": "Structural Note",
-  "id": "uuid",
-  "attributeStyleId": "as-default"
-}
-```
-
----
-
-### Texts
-
-```json
-{
-  "position": { "x": 100, "y": 200 },
-  "text": "My Label",
-  "size": 14,
-  "color": "#ffffff",
-  "backgroundColor": "#000000",
-  "backgroundColorOpacity": 0,
-  "alignment": "center",
-  "textPosition": "middle-center",
-  "rotation": 0,
-  "bold": false,
-  "italic": false,
-  "id": "uuid",
-  "attributeStyleId": "as-default"
-}
-```
-
-`rotation` is in degrees (confirmed from a real export). A real export also carries computed layout fields (`boxWidth`, `boxHeight`, `boxMinHeight`, `start_pos`, `end_pos`, `totalWidth`, `totalHeight`) — these are derived by the platform from `text`/`size`/`position` and can be omitted when creating a text element programmatically.
-
-`alignment`: `"left"`, `"center"`, `"right"`.  
-`textPosition` (**required** — omitting it will crash selection): `"top-left"`, `"top-center"`, `"top-right"`, `"middle-left"`, `"middle-center"`, `"middle-right"`, `"bottom-left"`, `"bottom-center"`, `"bottom-right"`. Default to `"middle-center"`.  
-`backgroundColorOpacity`: `0` = transparent, `1` = opaque.  
-`size` is in pixels — use `14` for body text, `20–28` for headings. The `attributeStyleId` can override this if `textSizeOverride` is enabled on the style.
-
-> **CRITICAL — text color:** The canvas background is dark. **Always set `color` to a light value** (`"#ffffff"` for headings, `"#e2e8f0"` for body, `"#94a3b8"` for secondary labels). **Never use `"#333333"`, `"#222222"`, `"#000000"`, or any other dark/black color** — dark text is invisible on the dark canvas and cannot be read by the user.
-
-> **`alignment: "center"` / `"right"` double-compensates if you've already positioned the
-> text yourself.** Confirmed by measuring a rendered title against its true geometric
-> center: the platform applies its *own* additional horizontal shift on top of whatever
-> `position` you supply whenever `alignment` is `"center"` or `"right"` — it isn't a
-> pure "anchor the box this way" flag. If you're computing `position` yourself (e.g. to
-> center a title over a drawing), the reliable pattern is to estimate the text's
-> rendered width, shift `position.x` by that estimate yourself, and always emit
-> `alignment: "left"` — never let the platform apply a second shift on top of your own.
-> A rough width estimator that's held up across several re-measured strings:
-> `renderedWidth ≈ text.length * size * 16` (in the same mm-like units as `position`).
-
----
-
-### Tables
-
-```json
-{
-  "id": "uuid",
-  "attributeStyleId": "as-default",
-  "position": { "x": 0, "y": 0 },
-  "title": "MY CUSTOM TABLE",
-  "rows": [
-    ["Header 1", "Header 2", "Header 3"],
-    ["Cell 1",   "Cell 2",   "Cell 3"]
-  ],
-  "opts": {
-    "first_row_header": true,
-    "alignment": "center",
-    "text_color": "#ffffff",
-    "bg_color": "#000000",
-    "header_background_color": "#4a5568",
-    "font_size": 15,
-    "width": 2000,
-    "height": 800,
-    "row_height": 200
-  }
-}
-```
-
-`title` (optional, confirmed from a real export) renders as a caption above the table.
-
----
-
-### Axes (Gridlines)
-
-A labeled reference axis/gridline between two points.
-
-![Axis dash-dot line pattern set by axisDashLength and axisDashGap, with the label circle at the terminus](assets/images/axis-dashdot.svg)
-
-```json
-{
-  "p1": { "x": 0, "y": -5000 },
-  "p2": { "x": 0, "y":  5000 },
-  "label": "A",
-  "id": "uuid",
-  "attributeStyleId": "as-default"
-}
-```
-
-Axes always render as a **dash-dot line** (the standard convention for gridlines/
-centerlines) — the dash length and gap come from the referenced style's
-`axisDashLength` / `axisDashGap` (see "attributeStyles" above), not from a per-element
-field.
-
----
-
-### Construction Lines
-
-Infinite reference lines defined by a point and angle.
-
-```json
-{
-  "point": { "x": 0, "y": 0 },
-  "angle": 90,
-  "id": "uuid",
-  "isHidden": false,
-  "lineType": "dashdotdot"
-}
-```
-
-`angle` is in degrees. `lineType` (optional, confirmed from a real export) accepts the
-same values as a `Layer`'s `lineType` (see "Layers" below) — e.g. `"dashdotdot"` for a
-centerline convention — and overrides the layer default for this element.
-
----
-
-### Revision Clouds
-
-![Revision cloud bounding-box fields: rectangular uses minX/minY/maxX/maxY, circular uses center/radius](assets/images/revision-clouds.svg)
-
-#### Rectangular
-
-```json
-{
-  "id": "uuid",
-  "minX": 0, "minY": 0,
-  "maxX": 1000, "maxY": 500,
-  "arcRadius": 500,
-  "segments": 10,
-  "arcs": []
-}
-```
-
-#### Circular
-
-```json
-{
-  "id": "uuid",
-  "minX": 0, "minY": 0,
-  "maxX": 1000, "maxY": 1000,
-  "arcRadius": 500,
-  "segments": 10,
-  "center": { "x": 500, "y": 500 },
-  "radius": 500,
-  "arcs": []
-}
-```
-
-> Provide the bounding box and `arcRadius`; the renderer computes the `arcs` array automatically. Pass `arcs: []` when creating programmatically.
-
----
-
-### Hatches
-
-A filled region defined by one or more closed loops. Each loop is an array of segments.
-
-```json
-{
-  "id": "uuid",
-  "type": "hatch",
-  "color": "#5a5995",
-  "opacity": 0.5,
-  "loops": [
-    {
-      "segments": [
-        { "type": "line", "start": { "x": 0,   "y": 0   }, "end": { "x": 100, "y": 0   } },
-        { "type": "line", "start": { "x": 100, "y": 0   }, "end": { "x": 100, "y": 100 } },
-        { "type": "line", "start": { "x": 100, "y": 100 }, "end": { "x": 0,   "y": 0   } }
-      ]
-    }
-  ]
-}
-```
-
-Segment types: `"line"` or `"arc"`. Loops must be closed (last segment endpoint = first segment start point).
-
-A real export also carries `"pattern"` (a named fill pattern, e.g. `"stone"`) and `"patternScale"` alongside `"color"`/`"opacity"` — both optional, omit for a solid fill at default scale.
-
----
-
-### Images
-
-Images are stored as base64 text. See below example
-
-```json
-        {
-          "id": "5776f8ac-a865-439e-99f1-2113c156e6fc",
-          "src": "data:image/png;base64,iVBO...",
-          "x": 3686.8526586590224,
-          "y": -8875.987027389341,
-          "width": 1650,
-          "height": 1173,
-          "rotation": 0,
-          "opacity": 1,
-          "z": 1,
-          "isPdf": false,
-          "isRenderer": false,
-          "s3dRender": null
-        }
-```
-
-`x`/`y` is the image's **top-left corner** (not a center), `width`/`height` in mm — for a
-square source image, set them equal to draw it undistorted. A production generator
-instead used `isPdf`/`pdfName`/`pdfPage` in place of `isRenderer`/`s3dRender` (for
-embedding a specific page of a PDF) — both variants have been seen working; include
-whichever pair matches what you're embedding, `isPdf: false` with the rest omitted is
-fine for a plain raster image.
-
-> **`images` is canvas-level only — it is NOT a supported item type inside a
-> `blockReferences[].items` block definition** (see "Blocks" below; the supported item
-> types there don't include `image`, and a real platform-exported title block confirms
-> this the hard way — its own logo slot is a plain **text placeholder** reading `"LOGO
-> PLACEHOLDER"`, not an embedded image, presumably for this exact reason). If you're
-> reusing the block-based title-block template (see "Pages & Title Blocks" below) and
-> need a real logo image in it, don't try to nest the image inside the block — instead,
-> push a separate entry onto the **canvas's own top-level `images` array**, positioned
-> (`x`/`y`/`width`/`height`) to land in the same spot the block's placeholder occupies.
-> A production generator does exactly this: it skips the block/instance system for its
-> title block entirely and draws the logo, and everything else in the block, straight
-> onto the canvas (`lines`/`texts`/`tables`/`images`) at computed absolute coordinates.
-
----
-
-## Blocks
-
-Reusable drawing element groups — used for anything you place more than once (a repeated
-detail, a north-point symbol, or a **title block**, see "Pages & Title Blocks" below).
-
-### Block References (Definitions)
-
-**Top-level, camelCase, sibling of `canvases`** — `cad_data.blockReferences`, an array.
-This is a real correction to this schema: block *definitions* do not live inside a
-canvas. Canvases only *place* an already-defined block via `block_instances` (below).
-Verified against the live API and a genuine platform-exported project file.
-
-```json
-{
-  "id": "block-def-uuid",
-  "name": "Detail A",
-  "basePoint": { "x": 0, "y": 0 },
-  "items": [
-    { "type": "line",            "data": { "p1": { "x": 0, "y": 0 }, "p2": { "x": 100, "y": 100 } } },
-    { "type": "arc",             "data": { "type": "arc", "points": [ ... ], "segments": 100 } },
-    { "type": "dimension",       "data": { "p1": { ... }, "p2": { ... }, "offsetPoint": { ... } } },
-    { "type": "multiLeaderText", "data": { "anchorPoint": { ... }, "arrowPoints": [ ... ], "text": "Note" } },
-    { "type": "hatch",           "data": { "color": "#5a5995", "opacity": 0.5, "loops": [ ... ] } },
-    { "type": "point",           "data": { "x": 10, "y": 20 } },
-    { "type": "text",            "data": { "position": { "x": 0, "y": 0 }, "text": "Label", "size": 14, "color": "#ffffff", "textPosition": "middle-center", "backgroundColorOpacity": 0 } },
-    { "type": "leaderText",      "data": { "startPoint": { ... }, "endPoint": { ... }, "text": "Note" } }
-  ]
-}
-```
-
-Supported item types inside blocks: `point`, `line`, `arc`, `dimension`, `multiLeaderText`,
-`hatch`, `text`, `leaderText` (the last two confirmed from a real title-block asset, not
-previously documented here). **`image` is not one of them** — see the "Images" note above
-for the canvas-level workaround (a real title block even uses a `"LOGO PLACEHOLDER"` text
-item where a logo would go, instead of an embedded image).
-
-`basePoint` is the anchor: it's the point *in the block's own local geometry* that gets
-mapped onto `position` when the block is instanced (see the transform below) — it is
-**not** necessarily the block's bounding-box corner. In practice, set it to whatever
-point in your block's geometry makes the most sense as an insertion handle (e.g. its
-centroid, or a specific corner).
-
-### Block Instances
-
-Place a block on a canvas.
-
-![Block placement transform: local geometry maps to world space via position, scale, and basePoint](assets/images/block-transform.svg)
-
-```json
-{
-  "id": "instance-uuid",
-  "blockId": "block-def-uuid",
-  "position": { "x": 0, "y": 0 },
-  "rotation": 0,
-  "scale": { "x": 1, "y": 1 }
-}
-```
-
-**Placement transform** (rotation = 0): every point `local` in the block definition's
-`items` maps to world/canvas space as:
-
-```
-world.x = instance.position.x + instance.scale.x * (local.x - blockRef.basePoint.x)
-world.y = instance.position.y + instance.scale.y * (local.y - blockRef.basePoint.y)
-```
-
-(With `rotation != 0`, apply a standard 2D rotation about `basePoint` before scaling and
-translating — not covered by the simple formula above.)
-
----
-
-## Layers
-
-Assign elements to layers for color, visibility, and line-type control.
-
-```json
-{
-  "id": "layer-uuid",
-  "name": "Structural",
-  "color": "#9ef5af",
-  "visible": true,
-  "locked": false,
-  "lineThickness": 2,
-  "lineType": "solid",
-  "patternScale": 1,
-  "items": [
-    { "type": "line",   "id": "line-uuid" },
-    { "type": "circle", "id": "polyline-uuid" }
-  ]
-}
-```
-
-`lineType`: `"solid"`, `"dashed"`, `"dashdotdot"` (this last one confirmed from a real
-CloudCAD export, on a `constructionLines` entity — a common drafting convention for
-centerlines).
-
-> A `constructionLines` export also showed `lineType` set directly on the *element
-> itself*, not only via its `Layer` — i.e. `{ "point": {...}, "angle": 90, "lineType":
-> "dashdotdot" }`. Whether an ordinary bounded `line`/`polyline` (as opposed to an
-> infinite construction line) also respects a per-element `lineType` the same way is a
-> same-schema bet, not independently confirmed — round-trip test it (create one with the
-> field set in the CloudCAD UI, save, `cloudcad.file.open` it back) before relying on it
-> for anything that must render correctly unattended.
-
----
-
-## `pdfExport` (Pages)
-
-**Top-level, sibling of `canvases`** — `cad_data.pdfExport`. Defines the physical
-printed page(s) for the drawing: a rectangle in canvas units overlaid on the canvas,
-plus paper metadata. Previously undocumented; confirmed against a real platform-exported
-project.
-
-```json
-{
-  "pdfPages": [
-    {
-      "frame": {
-        "start": { "x": 67000, "y": -105000 },
-        "end":   { "x": 126400, "y": -63000 }
-      },
-      "orientation": "landscape",
-      "format": "A2",
-      "printPage": true,
-      "offset": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
-      "scale": 100,
-      "canvasIndex": 0
-    }
-  ]
-}
-```
-
-| Key | Type | Description |
-|---|---|---|
-| `frame.start` / `frame.end` | `{x,y}` | The page's rectangle in canvas units (respects `settings.canvasLengthUnits`) — this **is** the page; `format`/`orientation` are descriptive labels and must be kept consistent with it, not the other way round. |
-| `orientation` | `string` | `"landscape"`, `"portrait"` |
-| `format` | `string` | Paper size label, e.g. `"A0"`–`"A4"` |
-| `printPage` | `boolean` | Whether this page is included in a PDF export |
-| `offset` | `{top,right,bottom,left}` | Print margins |
-| `scale` | `number` | Print scale, percent |
-| `canvasIndex` | `integer` | Which `canvases[]` entry this page belongs to (for multi-canvas documents) |
-
-Compute the frame size from the paper format in mm, e.g. A2 landscape = 594mm × 420mm →
-`594 * 100 = 59400` units wide, `420 * 100 = 42000` units tall (the example above uses
-that exact size). A `savedSettings` sibling key may also appear alongside `pdfPages` —
-that's UI dialog state (last-used format/margins in the CAD editor), safe to omit when
-creating a drawing programmatically.
-
----
-
-## Pages & Title Blocks — Default Template
-
-> **Do this by default.** Unless the user asks for bare geometry only (or explicitly
-> says they don't want a title block/page), every CAD drawing you generate should be
-> wrapped in this page + title block template. It's easy for a user to strip back out
-> afterward — delete the `blockReferences`, `pdfExport`, and the title-block
-> `block_instances` entry — so default to including it rather than asking first.
-
-To produce a drawing that looks like a finished, ready-to-print sheet (a page border +
-title block, not just bare geometry), reuse the ready-made template at
-[`assets/Title-Block-Example.json`](./assets/Title-Block-Example.json) rather than
-building one from scratch — it's a real, working A2-landscape page + title block
-exported from the platform. Copy these three pieces verbatim into your new `cad_data`:
-
-1. **`pdfExport`** — the A2-landscape page frame (see above).
-2. **`blockReferences[0]`** — the title block's own definition (border lines, the info
-   table, labels like "Project Title:", "Project Address:", "STATUS:"). Keep its `id`.
-3. **The canvas's `block_instances[0]`** — places that block at
-   `position: {x: 96700, y: -86048}`, `scale: {x: 2, y: 2}`, `rotation: 0`, referencing
-   the `blockId` from step 2.
-
-> **Want a real logo instead of the template's `"LOGO PLACEHOLDER"` text?** Don't edit it
-> into the block — `image` isn't a supported block item type (see "Images" above). Add it
-> as its own entry in the canvas's top-level `images` array instead, with `x`/`y`/`width`/
-> `height` computed to land in the same spot, alongside your own drawing content below.
-
-Then add your own drawing content (lines, dimensions, texts) to the canvas, **translated
-only** to sit inside the page frame without overlapping the title block:
-
-```
-1. Compute the new content's bounding box: [contentMinX, contentMaxX] x [contentMinY, contentMaxY]
-2. Define a safe drawing rectangle inside the page frame, clear of the title block
-   (see below for this template specifically)
-3. Translate every coordinate in your content by (safeCenter - contentCenter) so its
-   bounding-box center lands on the safe rectangle's center - do NOT scale/resize it
-```
-
-> **Never scale model geometry to force-fit a page — this is a real mistake this skill
-> made once, do not repeat it.** CAD model coordinates are the true, real-world
-> measurement of what's drawn; CloudCAD's `dimensions` report the actual distance
-> between their two points, so scaling geometry to fit a page silently corrupts every
-> dimension label along with it (a 24 ft span rendered as "40000mm" instead of the true
-> 7315.2mm, because the whole drawing had been scaled up ~5.5x to visually fill the
-> page). **Draw everything at true size and only translate (reposition) it.** If true-size
-> content is smaller than the page at this template's plot scale, that's correct — the
-> object is just small relative to the sheet, the same as it would be on a real drafter's
-> A2 sheet at this scale. If you need the object to visually fill more of the page, that
-> is a **plot-scale problem** (use a title-block/page template built for a finer scale,
-> e.g. 1:20 instead of this one's ~1:100 — see "Known limitations"), never a
-> "stretch the model" problem.
-
-> **`settings.canvasLengthUnits` is display-only — it does NOT reinterpret what stored
-> x/y numbers mean, so never rescale coordinates when changing it.** Raw coordinates are
-> real mm internally regardless of this setting; changing it only changes how dimension
-> *labels* are converted for display when read back. If you pre-divide every coordinate
-> by 304.8 to "convert to feet" and *also* set `canvasLengthUnits: "ft"`, you double
-> convert: the geometry becomes 304.8x too small, and then that already-wrong tiny value
-> gets converted again for the label (a real 24 ft span became 24mm internally, then
-> displayed as "0.08 ft" — exactly 24/304.8). This also breaks a reused title block the
-> same way (its text `size` fields are untouched scalars while its position coordinates
-> get incorrectly shrunk, so its text ends up dwarfing its own shrunken border). **To
-> change the displayed unit, only ever change the `canvasLengthUnits` setting itself —
-> build all geometry in true real mm exactly as described above, regardless of what unit
-> you want dimension labels to read in.**
-
-**For this exact template (A2 landscape)**, analysis of the title block's own geometry
-shows its info table (the actual text fields) occupies roughly the **right half** of the
-page, spanning most of its height — not just a bottom strip. As a conservative starting
-default, treat the **left ~45,000 units of page width** (roughly `x: 69000` to `x:
-114000`, `y: -103000` to `-65000`, leaving margins) as the safe zone for new drawing
-content, and keep the title block itself untouched on the right.
-
-### Known limitations — read before assuming this "just works"
-
-- **This safe-zone rectangle is an approximation**, derived by analyzing the block's
-  coordinate data, not by visually rendering the drawing (no tool available here can
-  render/screenshot the CAD viewer). It's a reasonable starting default, not a
-  pixel-verified boundary. **The first time you use this pattern on a new project, open
-  the returned `view_link` and visually confirm nothing overlaps the title block** before
-  trusting it for unattended/repeated use.
-- **Only cleanly reusable at A2 landscape, or other ISO 'A' landscape sizes via uniform
-  rescaling** (A0/A1/A3/A4 landscape all share the same √2:1 aspect ratio as A2, so
-  scaling `pdfExport.frame`, the block's `position`, and its `scale` by the same factor
-  keeps everything proportional). **Portrait orientation, or non-ISO sizes (e.g. ANSI
-  D/E), are not trivially derived from this template** — the title block's artwork
-  (line lengths, text positions) is fixed, hand-drafted geometry, not a parametric
-  layout, so a different aspect ratio needs its own template rather than a stretch of
-  this one (stretching non-uniformly will visibly distort the border and text).
-- **Rotated placement isn't covered** by the simple placement formula above — this
-  template uses `rotation: 0`.
-
----
-
-## cloudcad.model Functions
-
-### `cloudcad.model.create`
-
-Creates a new CAD model from a `cad_data` object. **Must be called before `cloudcad.file.save`.**
-
-```json
-{
-  "function": "cloudcad.model.create",
-  "arguments": {
-    "cad_data": {
-      "settings": { "canvasLengthUnits": "mm" },
-      "blockReferences": [],
-      "canvases": [
-        {
-          "version": "2.0.0",
-          "schema": "canvas-json-v2-optimized",
-          "name": "Floor Plan",
-          "drawing_type": "Plan",
-          "is_base": true,
-          "points": [],
-          "lines": [
-            { "p1": { "x": 0, "y": 0 }, "p2": { "x": 5000, "y": 0 } }
-          ],
-          "polylines": [],
-          "dimensions": [],
-          "angleDimensions": [],
-          "radiusDimensions": [],
-          "leaderTexts": [],
-          "multiLeaderTexts": [],
-          "texts": [],
-          "tables": [],
-          "axes": [],
-          "constructionLines": [],
-          "revisionClouds": [],
-          "hatches": [],
-          "images": [],
-          "block_instances": [],
-          "layers": []
-        }
-      ]
-    }
-  }
-}
-```
-
-**Response:**
-```json
-{ "status": 0, "msg": "CAD model was successfully created.", "data": "" }
-```
-
----
-
-## cloudcad.file Functions
-
-### `cloudcad.file.save`
-
-Save the current CAD model to cloud storage. **Requires `cloudcad.model.create` earlier in the session.**
-
-| Key | Type | Description |
-|---|---|---|
-| `name` | `string` | File name |
-| `path` | `string` | Cloud storage path |
-| `public_share` | `boolean` | Also return a public view-only link |
-| `return_uid_url` | `boolean` | Return a UID-based URL (`?u=`) instead of name/path URL |
-
-```json
-{
-  "function": "cloudcad.file.save",
-  "arguments": {
-    "name": "floor-plan-v1",
-    "path": "projects/cad/",
-    "public_share": true
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "status": 0,
-  "msg": "CAD model was successfully saved ...",
-  "data": "https://platform.skyciv.com/cad?preload_name=floor-plan-v1&preload_path=projects/cad/",
-  "public_link": "https://platform.skyciv.com/cad-viewer?project_id=..."
-}
-```
-
-### `cloudcad.file.open`
-
-Load a CAD model from cloud storage.
-
-| Key | Type | Description |
-|---|---|---|
-| `name` | `string` | File name |
-| `path` | `string` | Cloud storage path |
-| `uid` | `string` | File UID (alternative to `name`/`path`) |
-
-```json
-{
-  "function": "cloudcad.file.open",
-  "arguments": {
-    "name": "floor-plan-v1",
-    "path": "projects/cad/"
-  }
-}
-```
-
-**Response:**
-```json
-{ "status": 0, "msg": "File Loaded: CAD model 'floor-plan-v1' is set." }
-```
-
----
-
-## Full Example — Create and Save a CAD Drawing
+| `canvases` | **yes** | Array of drawing sheets. Each canvas holds the element arrays: `points`, `lines`, `polylines`, `dimensions`, `angleDimensions`, `radiusDimensions`, `leaderTexts`, `multiLeaderTexts`, `texts`, `tables`, `axes`, `constructionLines`, `revisionClouds`, `hatches`, `images`, `block_instances`, `layers`. |
+| `attributeStyles` | effectively yes | Named sizing styles for annotations; elements point to one with `attributeStyleId`. |
+| `settings` | no | Display/snap/colour settings, plus `canvasLengthUnits`. Every field is optional. |
+| `blockReferences` | no | Block **definitions**: top-level and camelCase. Canvases only place them, via `block_instances`. |
+| `pdfExport` | no | Printed page frames. |
+| `s3d` | no | Metadata for turning the CAD drawing into an S3D model. See [`references/s3d-mapping.md`](references/s3d-mapping.md). |
+
+Verified minimum: `{"canvases":[{"lines":[...]}]}` renders. Missing element arrays,
+`version`/`schema`/`drawing_type`/`is_base` are all optional. Real platform exports omit
+`drawing_type` and `is_base`. Including every array as `[]` is still the safe default
+(`emptyCanvas()` does this), because the editor expects them.
+
+**Field-by-field schema for every element type** (`settings` keys, style keys, lines, polylines,
+the three dimension types, leaders, text, tables, axes, construction lines, revision clouds,
+hatches, images, layers, blocks): read
+[`references/elements.md`](references/elements.md) before writing an element type you haven't
+written in this session.
+
+## Minimal working example
+
+Verified live: this renders a 6 m × 4 m rectangle with a dimension and a label, then saves it.
 
 ```json
 {
   "auth": { "username": "user@example.com", "key": "YOUR_KEY" },
-  "options": { "validate_input": true },
   "functions": [
-    {
-      "function": "S3D.session.start",
-      "arguments": { "keep_open": false }
-    },
-    {
-      "function": "cloudcad.model.create",
-      "arguments": {
-        "cad_data": {
-          "settings": { "canvasLengthUnits": "mm" },
-          "attributeStyles": [
-            {
-              "id": "as-default",
-              "name": "Default Style",
-              "settings": {
-                "linearArrowShape": "arrow",
-                "linearArrowLength": 216, "linearArrowWidth": 216,
-                "linearExtLineStartOffset": 0, "linearExtLineEndOffset": 0,
-                "linearTextOffset": 0, "linearTextHorizontalOffset": 0,
-                "linearTextHorizontalPosition": "center",
-                "dimensionTextSize": 378,
-                "angleArrowShape": "arrow",
-                "angleArrowLength": 216, "angleArrowWidth": 216,
-                "angleDimensionTextSize": 378,
-                "angleTextOffset": 600, "angleTextOrientation": "horizontal",
-                "radiusArrowShape": "arrow",
-                "radiusArrowLength": 216, "radiusArrowWidth": 216,
-                "radiusDimensionTextSize": 378, "radiusTextOffset": 0,
-                "leaderArrowShape": "arrow",
-                "leaderArrowLength": 216, "leaderArrowWidth": 216,
-                "leaderTextSize": 378,
-                "leaderTextOffsetHorizontal": 0, "leaderTextOffsetVertical": 0,
-                "axisExtension": 5000, "axisCircleDiameter": 1080,
-                "axisTextSize": 324, "axisDashLength": 216, "axisDashGap": 108,
-                "textSizeInput": 14, "textSizeOverride": false,
-                "fontFamily": "monospace", "tableFontSize": 400
-              }
-            }
-          ],
-          "canvases": [
-            {
-              "version": "2.0.0",
-              "schema": "canvas-json-v2-optimized",
-              "name": "Ground Floor Plan",
-              "drawing_type": "Plan",
-              "is_base": true,
-              "points": [],
-              "lines": [
-                { "p1": { "x": 0,    "y": 0    }, "p2": { "x": 6000, "y": 0    }, "groupId": "g1" },
-                { "p1": { "x": 6000, "y": 0    }, "p2": { "x": 6000, "y": 4000 }, "groupId": "g1" },
-                { "p1": { "x": 6000, "y": 4000 }, "p2": { "x": 0,    "y": 4000 }, "groupId": "g1" },
-                { "p1": { "x": 0,    "y": 4000 }, "p2": { "x": 0,    "y": 0    }, "groupId": "g1" }
-              ],
-              "polylines": [],
-              "dimensions": [
-                {
-                  "p1": { "x": 0, "y": 0 },
-                  "p2": { "x": 6000, "y": 0 },
-                  "offsetPoint": { "x": 3000, "y": -500 },
-                  "attributeStyleId": "as-default"
-                }
-              ],
-              "angleDimensions": [], "radiusDimensions": [],
-              "leaderTexts": [], "multiLeaderTexts": [],
-              "texts": [
-                {
-                  "position": { "x": 3000, "y": 2000 },
-                  "text": "GROUND FLOOR",
-                  "size": 20,
-                  "color": "#ffffff",
-                  "alignment": "center",
-                  "textPosition": "middle-center",
-                  "bold": true,
-                  "italic": false,
-                  "backgroundColor": "#000000",
-                  "backgroundColorOpacity": 0,
-                  "attributeStyleId": "as-default"
-                }
-              ],
-              "tables": [], "axes": [], "constructionLines": [],
-              "revisionClouds": [], "hatches": [], "images": [],
-              "block_instances": [], "layers": []
-            }
-          ]
-        }
-      }
-    },
-    {
-      "function": "cloudcad.file.save",
-      "arguments": {
-        "name": "ground-floor-plan",
-        "path": "projects/building-a/",
-        "public_share": true
-      }
-    }
+    { "function": "cloudcad.model.create", "arguments": { "cad_data": {
+      "settings": { "canvasLengthUnits": "mm" },
+      "attributeStyles": [ { "id": "as-default", "name": "Default", "settings": {
+        "dimensionTextSize": 378, "linearArrowShape": "arrow", "linearArrowLength": 216, "linearArrowWidth": 216,
+        "leaderTextSize": 378, "leaderArrowLength": 216, "leaderArrowWidth": 216,
+        "axisTextSize": 324, "axisCircleDiameter": 1080, "axisDashLength": 216, "axisDashGap": 108,
+        "textSizeInput": 14, "textSizeOverride": false, "fontFamily": "monospace", "tableFontSize": 400 } } ],
+      "canvases": [ {
+        "name": "Ground Floor",
+        "lines": [
+          { "p1": { "x": 0, "y": 0 },        "p2": { "x": 6000, "y": 0 } },
+          { "p1": { "x": 6000, "y": 0 },     "p2": { "x": 6000, "y": -4000 } },
+          { "p1": { "x": 6000, "y": -4000 }, "p2": { "x": 0, "y": -4000 } },
+          { "p1": { "x": 0, "y": -4000 },    "p2": { "x": 0, "y": 0 } }
+        ],
+        "dimensions": [ { "p1": { "x": 0, "y": 0 }, "p2": { "x": 6000, "y": 0 },
+          "offsetPoint": { "x": 3000, "y": 800 }, "projectionType": "horizontal", "attributeStyleId": "as-default" } ],
+        "texts": [ { "position": { "x": 3000, "y": -2000 }, "text": "GROUND FLOOR", "size": 20,
+          "color": "#ffffff", "alignment": "center", "textPosition": "middle-center", "attributeStyleId": "as-default" } ]
+      } ]
+    } } },
+    { "function": "cloudcad.file.save", "arguments": { "name": "ground-floor", "path": "projects/cad/" } }
   ]
 }
 ```
 
----
+## Functions
 
-## Coordinate System
+| Function | Arguments | Returns (verified) |
+|---|---|---|
+| `cloudcad.model.create` | `cad_data` (object) | `{status: 0, msg: "CloudCAD session successfully created.", data: ""}`, plus a new `session_id`. The docs' msg text is out of date. |
+| `cloudcad.file.save` | `name`, `path` (strings); `public_share`, `return_uid_url` (booleans) | `data` is always `https://platform.skyciv.com/cad?u=<uid>`. **No `public_link` is returned, whatever `public_share` / `return_uid_url` are set to.** |
+| `cloudcad.file.open` | `name` + `path`, or `uid` | `{status: 0, msg: "", data: ""}`, **even for a file that doesn't exist**, and nothing appears in the session. Don't build on it (see Gotchas). |
 
-- All coordinates are 2D: `x` (horizontal) and `y` (vertical) on the canvas.
-- `y` is up as negative! So you need to reverse the direction if you're trying to build something upwards
-- Units are controlled by `settings.canvasLengthUnits`.
-- There is no Z axis on a single canvas; elevation is represented by using multiple canvases at different elevations (configured in `s3d.elevations`).
-- Coordinates can be any number including negative — the canvas has no fixed origin boundary.
+There is no `cloudcad.model.get`/`set`/export function: the API can't read a drawing's JSON back
+or export a PDF/DXF. Calling one returns `"The function '...' could not be found"`.
 
-## Key Patterns
+## Coordinates
 
-**Closed polygon from lines:** Share the same `groupId` across connected line segments.
+- 2D only. **`y` is negative going up the screen/sheet.** To draw something upward, subtract from y.
+  Mapping an S3D model (y up) needs `y_cad = -y_model`.
+- No origin boundary; negative coordinates are fine.
+- Rotation units differ by element, and every one of these was verified by render:
 
-**Reusable details:** Define once in the top-level `blockReferences`, place many times via `block_instances` with different `position`, `rotation`, and `scale`.
+| Field | Unit | Positive direction on screen |
+|---|---|---|
+| `texts[].rotation`, `images[].rotation` | degrees | clockwise |
+| `block_instances[].rotation` | **radians** (`90` renders at 90 rad ≈ 116.6°) | clockwise |
+| `constructionLines[].angle` | degrees | counter-clockwise (30 rises to the right) |
 
-**Organised drawings:** Assign elements to `layers` by referencing their `type` and `id`. Enable `displayColorByLayers` in settings to inherit layer colors.
+## Sizing: one rule
 
-**Opening a previously saved drawing for editing:** Use `cloudcad.file.open` to load it into the session, modify via API, then `cloudcad.file.save` with the same name/path to overwrite.
+Pick the plot scale `S` (100 for 1:100). Every **length-valued** style setting is
+`printed mm × S`:
 
-**The `z` field:** most element types (`lines`, `dimensions`, `axes`, `tables`, `block_instances`, `hatches`, ...) carry a `"z"` integer in a real export — an internal render/stacking-order index the platform assigns on save. Safe to omit when creating elements programmatically; don't try to control draw order with it.
+| Style setting | Printed size | At 1:100 | At 1:50 |
+|---|---|---|---|
+| `dimensionTextSize`, `angle/radiusDimensionTextSize`, `leaderTextSize` | 3.78 mm | 378 | 189 |
+| `linearArrowLength` / `Width` (and angle/radius/leader) | 2.16 mm | 216 | 108 |
+| `axisCircleDiameter` / `axisTextSize` | 10.8 / 3.24 mm | 1080 / 324 | 540 / 162 |
+| `axisDashLength` / `axisDashGap` | 2.16 / 1.08 mm | 216 / 108 | 108 / 54 |
+| `tableFontSize` | 4 mm | 400 | 200 |
 
-## Sizing, Units and Scaling
+`attributeStyle(S)` in the helper builds this. Don't scale `textSizeInput`, which is not a length.
+When a generator switches plot scale, it rescales the **style** (and any page furniture) by the
+same factor and leaves the geometry at true size.
 
-**Always define `attributeStyles` and reference `"attributeStyleId": "as-default"` on every annotation element** (dimensions, texts, leader texts, axes). Without this, annotation sizes default to values designed for a different drawing scale and will look wrong.
+Plain `texts` do **not** use the style for size. `size` is a unitless factor that renders at
+roughly **16 mm of character width per unit** (monospace), verified across zoom levels: a
+17-character string at `size: 14` was about 3.9 m wide. So `size: 14` suits a building-scale plan
+at 1:100. For a 1:10 detail, divide it by about 10.
 
-Scale all length values in the attribute style to match the drawing size:
+## Verifying a drawing (you can't open the viewer)
 
-| Drawing scale | Typical geometry size | `dimensionTextSize` | `linearArrowLength` | `textSizeInput` |
-|---|---|---|---|---|
-| Cross-section | 50–300 mm | 10 | 6 | 14 |
-| Structural detail | 200–2000 mm | 50 | 30 | 14 |
-| Building (rooms) | 3000–10000 mm | 378 | 216 | 14 |
-| Large building / site | 10000–50000 mm | 500 | 300 | 14 |
+Undocumented, but useful: when any call in a request **fails**, the response's top-level
+`response.screenshot` holds an 800×600 base64 PNG of the headless CloudCAD editor, showing the
+model built so far. To see your drawing, append a deliberately unknown call after `create`, such as
+`{"function": "cloudcad.model.get", "arguments": {}}`, then decode `response.screenshot`. It costs
+one credit and the view is not always zoomed to your content. This is a **debugging aid** for
+checking a new generator's output, not something to leave in production code.
 
-**For any drawing larger than 5000 mm, compute the text size proportionally instead of guessing from the table:**
+## Gotchas
 
-```
-dimensionTextSize = Math.round(Math.max(buildingWidth, buildingHeight) / 60)
-linearArrowLength = Math.round(dimensionTextSize * 0.6)
-linearArrowWidth  = linearArrowLength
-```
+All of these were verified against the live API on 2026-09-22.
 
-Examples: 10 000 mm building → 167 mm text, 30 000 mm → 500 mm text, 50 000 mm → 833 mm text.  
-Apply the same formula to `angleDimensionTextSize`, `radiusDimensionTextSize`, `leaderTextSize`, and `axisTextSize`.
+- **`create` never validates.** Empty, garbage or broken `cad_data` returns `status: 0`, and
+  `validate_input` has no effect on it. Lint the payload and check a render.
+- **Never scale geometry to fit a page.** Dimensions measure the real distance between their
+  points, so scaling corrupts every label: a 24 ft span once read `40000mm`. Translate only. If
+  the drawing doesn't fit, change the plot scale or sheet.
+- **Never pre-convert coordinates for `canvasLengthUnits`.** Dividing coordinates by 304.8 *and*
+  setting `"ft"` converts twice (24 ft became `0.08 ft`).
+- **Hatch segments need `start`/`end`.** Segments with only `p1`/`p2` make `create` hang until
+  it times out (about 43 s, reproduced twice). Real exports carry both field pairs.
+- **Revision clouds need a precomputed `arcs` array.** With `arcs: []`, or no `arcs`, the cloud is
+  accepted but draws **nothing**. The platform doesn't generate the scallops. Build them with
+  `rectCloud()` / `revisionCloud()`.
+- **Linear dimensions:** omit `projectionType` to get an **aligned, true-length** dimension (a
+  3-4-5 diagonal reads `5000.0 mm`). `"horizontal"` / `"vertical"` give that projection (the same
+  diagonal reads 3000 / 4000). Any other value, including `"aligned"`, is treated as a projection
+  rather than aligned.
+- **Text needs a light `color`.** The canvas is dark, and a text with no `color` renders near-black
+  and invisible. Use `#ffffff` / `#e2e8f0` / `#94a3b8`. PDF output colours are unverified.
+- **`textPosition` on every text.** Rendering works without it, but the editor is reported to
+  crash when the user selects such a text. `alignment` anchors the text at `position` as you'd
+  expect (`center` centres it on x, `right` ends it at x), so don't also pre-shift `position`.
+- **Missing or unknown `attributeStyleId` fails silently.** The element falls back to the built-in
+  style (grey labels, default sizes).
+- **Images don't render inside a block definition.** Tables, axes, text, linear and radius
+  dimensions do. Put
+  logos on the canvas `images` array. An image's `x`/`y` is its top-left corner and it extends
+  toward **+y** (down the screen).
+- **`cloudcad.file.open` gives no signal.** It returns `status: 0` for files that don't exist and
+  loads nothing observable, so "open → edit → save" doesn't work. To change a drawing, regenerate
+  the full `cad_data`, then `create` + `save` it with the same `name`/`path`.
+- **Don't paste the asset JSON into a prompt.** `assets/title-block-a2.json` is about 50 KB and the
+  two example exports are about 125 KB each. Load them in code (`fs.readFileSync`) and copy the
+  pieces.
 
-`textSizeInput` is in pixels and does **not** scale with geometry — keep it at `14` for body text, `20–28` for headings regardless of drawing scale.
+## Bundled tools and assets
 
-**`textPosition` is required on every text element.** Omitting it causes a crash when the user tries to select items. Default to `"middle-center"`.
+| File | Load / run when |
+|---|---|
+| [`references/elements.md`](references/elements.md) | Writing any element type: field tables, verified behaviour, `settings` and style keys. |
+| [`references/pages-and-title-blocks.md`](references/pages-and-title-blocks.md) | Adding a page frame or title block, placing blocks, or computing where content goes on the sheet. |
+| [`references/s3d-mapping.md`](references/s3d-mapping.md) | Drawing from an S3D model, using the root `s3d` block, or launching CAD from inside the SkyCiv platform. |
+| `scripts/cad_helpers.js` | Building `cad_data` in Node. Also `node scripts/cad_helpers.js lint <file.json>` to lint any payload (a bare `cad_data` or a full request) before sending it. |
+| `assets/title-block-a2.json` | The default A2 1:100 page + title block, with measured `zones`. Load it in code. |
+| `assets/all-elements.json` | A real platform export containing one of almost every element. Grep it for a field's real shape; don't read it whole. |
+| `assets/Title-Block-Example.json` | The original export `title-block-a2.json` was derived from. Kept because the prototypes load it by path. |
+| `assets/images/dimension-linear.svg`, `assets/images/dimension-angle.svg`, `assets/images/axis-dashdot.svg`, `assets/images/revision-clouds.svg`, `assets/images/block-transform.svg` | Anatomy diagrams embedded in the reference files. |
 
----
+## Related skills
 
-## Integration with other tools
-
-If you're on the SkyCiv platform (i.e. hosted on platform.skyciv.com) you can use `SKYCIV_UTILS.exportToCad(cad_data)` to launch a CAD file from another product. This is helpful if you are auto-generating drawings from another SkyCiv product. This is not available on prototypes.
+- [`skyciv-api-v3`](../skyciv-api-v3/SKILL.md): auth, envelope, `options`.
+- [`s3d-api`](../s3d-api/SKILL.md): the `s3d_model` whose nodes/members you'd draw.
+- [`s3d-apps`](../s3d-apps/SKILL.md): in-app code, where `SKYCIV_UTILS.exportToCad(cad_data)` opens a drawing directly.
+- [`schema-agent`](../schema-agent/SKILL.md): reading a floor plan before drawing it.
+- [`renderer`](../renderer/SKILL.md): 3D visualisation (not 2D drawings).

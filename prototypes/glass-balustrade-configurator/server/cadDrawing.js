@@ -23,13 +23,13 @@ const TITLE_BLOCK_INSTANCE = titleBlockAsset.canvases[0].block_instances[0];
 const PAGE_PDF_EXPORT = titleBlockAsset.pdfExport;
 
 // Page frame represents 59400 x 42000 real-world mm (A2 landscape @ ~1:100) - see
-// cloudcad-api/SKILLS.md's "Known limitations". A balustrade run is much smaller than
+// cloudcad-api/references/pages-and-title-blocks.md. A balustrade run is much smaller than
 // that; it will sit with generous white space around it, which is correct at this
 // template's scale, not a sizing bug.
 const SAFE_ZONE = { minX: 69000, maxX: 114000, minY: -103000, maxY: -65000 };
 
-// CloudCAD's canvas y-axis is up = negative (cloudcad-api/SKILLS.md "Coordinate
-// System") - the opposite of this app's s3d_model y-axis (up = positive) - so every
+// CloudCAD's canvas y-axis is up = negative (cloudcad-api/SKILL.md
+// "Coordinates") - the opposite of this app's s3d_model y-axis (up = positive) - so every
 // point drawn "upward" needs its y negated here.
 function pt(xM, yM) {
   return { x: xM * M_TO_MM, y: -yM * M_TO_MM };
