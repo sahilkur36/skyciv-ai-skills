@@ -1,13 +1,30 @@
 {
   "region_input": "united-states",
-  "standard_input": "Please Select",
+  "standard_input": "ASCE-7-2022-LRFD",
   "criteria_input": "All",
-  "combination_naming_input": "ID",
+  "combination_naming_input": "ID + Factor + Symbol",
+  "multi_dropdown_1": ",f,u",
   "load_case_table": [
     {
       "col1": "D",
       "col2": 1,
       "col3": "simultaneous",
+      "col4": 1,
+      "col5": 0.5,
+      "col6": "auto"
+    },
+    {
+      "col1": "L",
+      "col2": 1,
+      "col3": "simultaneous",
+      "col4": 1,
+      "col5": 0.5,
+      "col6": "auto"
+    },
+    {
+      "col1": "W",
+      "col2": 2,
+      "col3": "independent",
       "col4": 1,
       "col5": 0.5,
       "col6": "auto"
