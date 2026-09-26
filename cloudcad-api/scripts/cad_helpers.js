@@ -116,6 +116,46 @@ function rectCloud(minX, minY, maxX, maxY, opts = {}) {
     Object.assign({ shapeMode: 'rectangle' }, opts));
 }
 
+// ---- structural (s3d) data: OPT-IN ONLY - add it only when the user asks for the drawing to
+// carry S3D members/supports/plates. Shapes match what the editor's right-click "Assign ..."
+// actions write (verified: they survive create + save and convert in the editor).
+
+/** lines[].s3d = { member: s3dMember() }  - a member from p1 to p2. `section` is an s3d.sections id (1 = editor default). */
+function s3dMember(overrides = {}) {
+  return Object.assign({
+    section: 1, type: 'normal_continuous', rotation_angle: 0, mirror: 'no', disable_non_linear_effects: 'no',
+    fixity_A: 'FFFFFF', fixity_B: 'FFFFFF', offset_Ax: '0', offset_Ay: '0', offset_Az: '0',
+    offset_Bx: '0', offset_By: '0', offset_Bz: '0',
+  }, overrides);
+}
+/** points[].s3d = { column: s3dColumn() } - a column projected to the next floor (multi-canvas only). */
+const s3dColumn = (overrides = {}) => s3dMember(overrides);
+/** points[].s3d = { support: s3dSupport('FFFRRR') } - restraint order Tx Ty Tz Rx Ry Rz. */
+function s3dSupport(restraint_code = 'FFFFFF', overrides = {}) {
+  return Object.assign({ restraint_code }, overrides);
+}
+/** hatches[].s3d = s3dPlate() (flat), or lines[].s3d = { plate: s3dPlate() } for a wall. thickness in mm. */
+function s3dPlate(overrides = {}) {
+  return Object.assign({
+    material_id: 1, thickness: 200, membrane_thickness: null, bending_thickness: null, shear_thickness: null,
+    rotZ: 0, structure_type: 'plate', type: 'auto', diaphragm: 'no', offset: 0, state: 'stress',
+    drilling_stiffness_factor: 1,
+  }, overrides);
+}
+/** Root cad_data.s3d block. normal_axis is required by the editor's converter. */
+function s3dRoot({ settings = {}, sections = {}, materials = {}, elevations = [{ canvas_id: 0, elevation: 0 }] } = {}) {
+  return {
+    settings: Object.assign({
+      units: 'mm', tolerance: 0.0001, normal_axis: 'Y', column_projection_direction: 'down',
+      connect_floors_by_columns: false, connect_floors_section_id: null, remove_duplicate_members: true,
+      supports_only_base: true, ignore_unassigned_sections: false,
+      structural_defaults: { defaultLineSectionId: 1, defaultColumnSectionId: 1, defaultSupportFixity: 'FFFFFF',
+        defaultPlateMaterialId: 1, defaultPlateThickness: 200 },
+    }, settings),
+    sections, materials, elevations,
+  };
+}
+
 // ---- geometry walking (translate only - never scale model geometry) ----
 
 const POINT_KEYS = ['p1', 'p2', 'offsetPoint', 'center', 'radiusPoint', 'intersection', 'p', 'startPoint',
@@ -178,8 +218,9 @@ function loadTemplate() {
  * title block, zones and attributeStyle are all multiplied by plotScale/100, so the printed sheet
  * looks identical and the geometry stays true size. Throws if the content does not fit: that is a
  * plot-scale problem, not a reason to shrink the geometry.
+ * Pass `s3d` (e.g. s3dRoot()) only for a structural drawing; without it no root s3d block is emitted.
  */
-function wrapInTitleBlock({ canvas, plotScale = 100, settings = { canvasLengthUnits: 'mm' }, zone = 'safe_zone', extraStyles = [] }) {
+function wrapInTitleBlock({ canvas, plotScale = 100, settings = { canvasLengthUnits: 'mm' }, zone = 'safe_zone', extraStyles = [], s3d }) {
   const t = loadTemplate();
   const k = plotScale / t.plot_scale;
   const page = t.pdfExport.pdfPages[0];
@@ -204,13 +245,15 @@ function wrapInTitleBlock({ canvas, plotScale = 100, settings = { canvasLengthUn
   canvas.block_instances.push(inst);
   page.frame = { start: sc(page.frame.start), end: sc(page.frame.end) };
   page.scale = plotScale;
-  return {
+  const out = {
     settings,
     attributeStyles: [plotScale === t.plot_scale ? t.attributeStyles[0] : attributeStyle(plotScale), ...extraStyles],
     blockReferences: t.blockReferences,
     pdfExport: t.pdfExport,
     canvases: [canvas],
   };
+  if (s3d) out.s3d = s3d;
+  return out;
 }
 
 // ---- lint: catches the silent failures cloudcad.model.create will not report ----
@@ -256,13 +299,33 @@ function lint(cadData) {
     });
     for (const k of ARRAY_KEYS) if (c[k] !== undefined && !Array.isArray(c[k])) out.push(`canvases[${ci}].${k} must be an array`);
   });
+  // structural data: only checked when present (it is opt-in)
+  const S3D_KEYS = { points: ['support', 'column'], lines: ['member', 'plate'] };
+  let structural = false;
+  d.canvases.forEach((c, ci) => {
+    for (const [k, allowed] of Object.entries(S3D_KEYS)) (c[k] || []).forEach((el, i) => {
+      if (!el.s3d || typeof el.s3d !== 'object' || !Object.keys(el.s3d).length) return;
+      structural = true;
+      const bad = Object.keys(el.s3d).filter((x) => !allowed.includes(x));
+      if (bad.length) out.push(`canvases[${ci}].${k}[${i}].s3d: unknown key(s) ${bad.join(', ')} - a ${k.slice(0, -1)} takes { ${allowed.join(' / ')}: {...} }`);
+      const sup = el.s3d.support;
+      if (sup && !/^[FRS]{6}$/.test(sup.restraint_code || '')) out.push(`canvases[${ci}].${k}[${i}].s3d.support: restraint_code must be 6 chars of F/R, e.g. "FFFRRR"`);
+    });
+    (c.hatches || []).forEach((h, i) => {
+      if (!h.s3d) return;
+      structural = true;
+      if (h.s3d.structure_type !== 'plate') out.push(`canvases[${ci}].hatches[${i}].s3d: must be a flat plate object with structure_type "plate" (not wrapped in { plate })`);
+    });
+  });
+  if (structural && !(d.s3d && d.s3d.settings && ['X', 'Y', 'Z'].includes(d.s3d.settings.normal_axis))) out.push('elements carry s3d data but root s3d.settings.normal_axis is missing - the editor cannot convert it; add s3d: s3dRoot()');
   for (const [id, b] of blocks) (b.items || []).forEach((it, i) => {
     if (it.type === 'image') out.push(`blockReferences["${id}"].items[${i}]: image items inside a block do not render - put the image on the canvas "images" array`);
   });
   return out;
 }
 
-module.exports = { attributeStyle, emptyCanvas, text, hatch, revisionCloud, rectCloud, bbox, translate, wrapInTitleBlock, lint, loadTemplate };
+module.exports = { attributeStyle, emptyCanvas, text, hatch, revisionCloud, rectCloud, bbox, translate, wrapInTitleBlock, lint, loadTemplate,
+  s3dMember, s3dColumn, s3dSupport, s3dPlate, s3dRoot };
 
 if (require.main === module) {
   const [cmd, file] = process.argv.slice(2);

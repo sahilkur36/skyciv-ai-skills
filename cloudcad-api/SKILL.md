@@ -36,7 +36,8 @@ changes how dimension **labels** are displayed. Verified: a 7315.2 mm line with
 
 In Node, `scripts/cad_helpers.js` does steps 2–4: `emptyCanvas`, `text`, `hatch`,
 `rectCloud`/`revisionCloud`, `attributeStyle(plotScale)`,
-`wrapInTitleBlock({ canvas, plotScale })` and `lint(cad_data)`.
+`wrapInTitleBlock({ canvas, plotScale })` and `lint(cad_data)`. Opt-in structural data uses
+`s3dMember`, `s3dSupport`, `s3dColumn`, `s3dPlate` and `s3dRoot`.
 
 ## `cad_data` structure
 
@@ -58,7 +59,7 @@ In Node, `scripts/cad_helpers.js` does steps 2–4: `emptyCanvas`, `text`, `hatc
 | `settings` | no | Display/snap/colour settings, plus `canvasLengthUnits`. Every field is optional. |
 | `blockReferences` | no | Block **definitions**: top-level and camelCase. Canvases only place them, via `block_instances`. |
 | `pdfExport` | no | Printed page frames. |
-| `s3d` | no | Metadata for turning the CAD drawing into an S3D model. See [`references/s3d-mapping.md`](references/s3d-mapping.md). |
+| `s3d` | no | **Opt-in.** Settings for turning the drawing into an S3D model. The structural data itself goes on each element (`lines[].s3d`, `points[].s3d`, `hatches[].s3d`). See [`references/s3d-mapping.md`](references/s3d-mapping.md). |
 
 Verified minimum: `{"canvases":[{"lines":[...]}]}` renders. Missing element arrays,
 `version`/`schema`/`drawing_type`/`is_base` are all optional. Real platform exports omit
@@ -194,6 +195,12 @@ All of these were verified against the live API on 2026-09-22.
 - **`cloudcad.file.open` gives no signal.** It returns `status: 0` for files that don't exist and
   loads nothing observable, so "open → edit → save" doesn't work. To change a drawing, regenerate
   the full `cad_data`, then `create` + `save` it with the same `name`/`path`.
+- **Structural (`s3d`) data is opt-in, and it lives on the elements.** Leave it out unless the user
+  explicitly asks for the drawing to carry S3D data. When they do, the root `s3d` block alone does
+  nothing: a line only becomes a member if it carries `s3d: { member: {...} }`. The same goes
+  for supports on `points` and plates on `hatches`. `wrapInTitleBlock` drops the root block unless
+  you pass `s3d`. Per-element `s3d` survives `create` + `save` (verified 2026-09-25). Shapes and
+  helpers are in [`references/s3d-mapping.md`](references/s3d-mapping.md).
 - **Don't paste the asset JSON into a prompt.** `assets/title-block-a2.json` is about 50 KB and the
   two example exports are about 125 KB each. Load them in code (`fs.readFileSync`) and copy the
   pieces.
@@ -204,7 +211,7 @@ All of these were verified against the live API on 2026-09-22.
 |---|---|
 | [`references/elements.md`](references/elements.md) | Writing any element type: field tables, verified behaviour, `settings` and style keys. |
 | [`references/pages-and-title-blocks.md`](references/pages-and-title-blocks.md) | Adding a page frame or title block, placing blocks, or computing where content goes on the sheet. |
-| [`references/s3d-mapping.md`](references/s3d-mapping.md) | Drawing from an S3D model, using the root `s3d` block, or launching CAD from inside the SkyCiv platform. |
+| [`references/s3d-mapping.md`](references/s3d-mapping.md) | Drawing from an S3D model, launching CAD from inside the SkyCiv platform, or, **only when asked**, attaching structural `s3d` data (members, supports, plates). |
 | `scripts/cad_helpers.js` | Building `cad_data` in Node. Also `node scripts/cad_helpers.js lint <file.json>` to lint any payload (a bare `cad_data` or a full request) before sending it. |
 | `assets/title-block-a2.json` | The default A2 1:100 page + title block, with measured `zones`. Load it in code. |
 | `assets/all-elements.json` | A real platform export containing one of almost every element. Grep it for a field's real shape; don't read it whole. |
