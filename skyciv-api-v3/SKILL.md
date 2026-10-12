@@ -212,7 +212,7 @@ Session start → set model → solve:
 | `S3D.file` | Save/open/share S3D files in cloud storage |
 | `S3D.design` | Member and RC design checks |
 | `S3D.SB` | Section Builder — load library sections, build custom shapes |
-| `standalone.foundation` | Standalone foundation design |
+| `standalone.foundation` | Standalone foundation design (piles only at the moment). See the [`foundation-api`](../foundation-api/SKILL.md) skill. |
 | `standalone.member` | Standalone member design |
 | `standalone.loads` | Wind and snow loads |
 | `cloudcad.model` | Create CAD models |

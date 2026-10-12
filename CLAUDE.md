@@ -18,7 +18,7 @@ Each top-level folder is one self-contained skill:
   assets/         # optional — example inputs, catalogues, templates
 ```
 
-Current skills: `skyciv-api-v3`, `s3d-api`, `s3d-apps`, `analysis-results`, `cloudcad-api`, `load-gen-api`, `load-combinations`, `run-quick-design`, `build-quick-design-calculator`, `baseplate`, `renderer`, `schema-agent`, `section-selector`, `qa-engineer`, `skill-writer`. There is also a `prototypes/` folder holding runnable example *apps* built on these skills (Node/Express), not `SKILL.md` files — currently `prototypes/glass-balustrade-configurator` and `prototypes/truss-designer`. Note: a `reporting-engineer` skill is planned but the folder does not yet exist in this repo — don't assume it does.
+Current skills: `skyciv-api-v3`, `s3d-api`, `s3d-apps`, `analysis-results`, `cloudcad-api`, `load-gen-api`, `load-combinations`, `run-quick-design`, `build-quick-design-calculator`, `baseplate`, `foundation-api`, `renderer`, `schema-agent`, `section-selector`, `qa-engineer`, `skill-writer`. There is also a `prototypes/` folder holding runnable example *apps* built on these skills (Node/Express), not `SKILL.md` files — currently `prototypes/glass-balustrade-configurator` and `prototypes/truss-designer`. Note: a `reporting-engineer` skill is planned but the folder does not yet exist in this repo — don't assume it does.
 
 Some `SKILL.md` files have YAML frontmatter (`name`, `description`, `argument-hint`) so agent harnesses can discover them; others (e.g. `skyciv-api-v3`, `s3d-api`, `cloudcad-api`, `load-gen-api`, `run-quick-design`) are documentation-only and omit it. Match the style of the skill you're editing.
 

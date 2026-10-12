@@ -1,0 +1,266 @@
+{
+  "auth": {
+    "username": "YOUR_USERNAME",
+    "key": "YOUR_KEY"
+  },
+  "functions": [
+    {
+      "function": "standalone.foundation.start",
+      "arguments": {
+        "keep_open": false
+      }
+    },
+    {
+      "function": "standalone.foundation.check",
+      "arguments": {
+        "1": {
+          "settings": {
+            "type": "piles_foundation",
+            "code": "EN",
+            "units": "metric"
+          },
+          "geometry": {
+            "shape": "round",
+            "depth": 600,
+            "width": 600,
+            "diameter": 600
+          },
+          "pile_details": {
+            "length": 3.5,
+            "H_exposed": 0.15,
+            "type": "bored",
+            "construction_type": "cast_in_place",
+            "head_fixity": "free",
+            "tip_fixity": "pinned",
+            "concrete_cover": 75
+          },
+          "materials": {
+            "properties": "reinforced_concrete",
+            "pile_modulus": 21373.38,
+            "concrete_strength": 20.68,
+            "rebar_strength": 276,
+            "steel_modulus": 200000,
+            "shear_rebar_strength": 276,
+            "shear_rebar_type": "ties"
+          },
+          "long_rebar": {
+            "1": {
+              "number": 1,
+              "diameter": 10,
+              "y": 90
+            },
+            "2": {
+              "number": 1,
+              "diameter": 10,
+              "y": 300
+            },
+            "3": {
+              "number": 1,
+              "diameter": 10,
+              "y": 510
+            },
+            "4": {
+              "number": 1,
+              "diameter": 10,
+              "y": 300
+            }
+          },
+          "shear_rebar": {
+            "1": {
+              "number": 2,
+              "diameter": 10,
+              "spacing": 300
+            }
+          },
+          "soils": {
+            "1": {
+              "type": "granular",
+              "label": "Clean Gravels",
+              "soil_weight": 18.7,
+              "friction_angle": 40,
+              "cohesion": 0,
+              "subgrade_modulus": 110000
+            },
+            "2": {
+              "type": "granular",
+              "label": "Poorly Graded Gravel",
+              "soil_weight": 17.3,
+              "friction_angle": 37,
+              "cohesion": 0,
+              "subgrade_modulus": 89000
+            },
+            "3": {
+              "type": "granular",
+              "label": "Silty Gravel",
+              "soil_weight": 17.9,
+              "friction_angle": 34,
+              "cohesion": 0,
+              "subgrade_modulus": 68500
+            },
+            "4": {
+              "type": "granular",
+              "label": "Clayey Gravels",
+              "soil_weight": 18.1,
+              "friction_angle": 31,
+              "cohesion": 0,
+              "subgrade_modulus": 53500
+            },
+            "5": {
+              "type": "granular",
+              "label": "Clean Sands",
+              "soil_weight": 18.7,
+              "friction_angle": 38,
+              "cohesion": 0,
+              "subgrade_modulus": 67000
+            },
+            "6": {
+              "type": "granular",
+              "label": "Poorly Graded Sands",
+              "soil_weight": 17.3,
+              "friction_angle": 37,
+              "cohesion": 0,
+              "subgrade_modulus": 67000
+            },
+            "7": {
+              "type": "cohesive",
+              "label": "Silty Sands",
+              "soil_weight": 17.9,
+              "friction_angle": 34,
+              "cohesion": 20,
+              "subgrade_modulus": 53500
+            },
+            "8": {
+              "type": "cohesive",
+              "label": "Sand Silt Clay",
+              "soil_weight": 18.7,
+              "friction_angle": 33,
+              "cohesion": 14,
+              "subgrade_modulus": 53500
+            },
+            "9": {
+              "type": "cohesive",
+              "label": "Clayey Sands",
+              "soil_weight": 18.1,
+              "friction_angle": 31,
+              "cohesion": 11,
+              "subgrade_modulus": 53500
+            },
+            "10": {
+              "type": "cohesive",
+              "label": "Clayey Silts",
+              "soil_weight": 16.2,
+              "friction_angle": 32,
+              "cohesion": 9,
+              "subgrade_modulus": 40500
+            },
+            "11": {
+              "type": "cohesive",
+              "label": "Silts and Clays",
+              "soil_weight": 17.1,
+              "friction_angle": 32,
+              "cohesion": 22,
+              "subgrade_modulus": 40500
+            },
+            "12": {
+              "type": "cohesive",
+              "label": "Inorganic Clays, med plasticity",
+              "soil_weight": 17,
+              "friction_angle": 28,
+              "cohesion": 13,
+              "subgrade_modulus": 34000
+            },
+            "13": {
+              "type": "cohesive",
+              "label": "Elastic silts",
+              "soil_weight": 12.9,
+              "friction_angle": 25,
+              "cohesion": 20,
+              "subgrade_modulus": 20500
+            },
+            "14": {
+              "type": "cohesive",
+              "label": "Inorganic clays, high plasticity",
+              "soil_weight": 14.8,
+              "friction_angle": 19,
+              "cohesion": 11,
+              "subgrade_modulus": 27500
+            }
+          },
+          "layer": {
+            "1": {
+              "thickness": 3.5,
+              "start": 0,
+              "end": 3.5,
+              "soil_id": 1
+            }
+          },
+          "loads": {
+            "1": {
+              "G": {
+                "axial": 0,
+                "shear_x": 0,
+                "shear_z": 0,
+                "moment_x": 0,
+                "moment_z": 0
+              },
+              "Ql": {
+                "axial": 0,
+                "shear_x": 0,
+                "shear_z": 0,
+                "moment_x": 0,
+                "moment_z": 0
+              },
+              "Qw": {
+                "axial": 0,
+                "shear_x": 0,
+                "shear_z": 0,
+                "moment_x": 0,
+                "moment_z": 0
+              },
+              "Qs": {
+                "axial": 0,
+                "shear_x": 0,
+                "shear_z": 0,
+                "moment_x": 0,
+                "moment_z": 0
+              },
+              "Qt": {
+                "axial": 0,
+                "shear_x": 0,
+                "shear_z": 0,
+                "moment_x": 0,
+                "moment_z": 0
+              },
+              "Qe": {
+                "axial": 0,
+                "shear_x": 0,
+                "shear_z": 0,
+                "moment_x": 0,
+                "moment_z": 0
+              }
+            }
+          },
+          "parameters": {
+            "EN": {
+              "psi_factor": 0.5,
+              "shaft": 1.1,
+              "base": 1.1,
+              "model": 1.5,
+              "concrete": 1.5,
+              "steel": 1.15,
+              "foundation": 1.1,
+              "long_term_effect_factor": 0.85
+            },
+            "others": {
+              "n_segment": 5,
+              "factor_of_safety": 1,
+              "ground_water_level": "N/A",
+              "water_density": 9.81,
+              "custom_load": false
+            }
+          }
+        }
+      }
+    }
+  ]
+}
