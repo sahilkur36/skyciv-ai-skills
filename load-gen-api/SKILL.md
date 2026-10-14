@@ -249,6 +249,7 @@ the wind pressure is resolved on it*, and its legal values depend on the design 
 | `structure_level` | Array of `{ floor_level, floor_elevation }` — **the elevations the windward-wall pressure is reported at**. Omit it and the API warns (`"wind_parameters.structure_level is not defined. Default value ({"floor_level":"2","floor_elevation":3}) will be used"`) and you get a single 3m station instead of a profile up your actual structure |
 | `wind_blockage` | ASCE 7/CFE/AS: `"clear"` or `"obstructed"` — AS/NZS 1170: `"empty"` or `"blocked"` |
 | `gust_effect_factor_override` | ASCE 7-10/16 and NSCP 2015: user-defined Gust Effect Factor |
+| `lowest_natural_frequency`, `damping_ratio`, `effective_area` | ASCE 7-22 ground-mounted solar panels only — see [Solar panel — ASCE 7-22 ground-mounted](#solar-panel--asce-7-22-ground-mounted) |
 
 **AS/NZS 1170 also expects** these, each of which warns and silently defaults if omitted:
 `elevated_building` (bool), `wall_condition` (e.g. `"5"`), `action_combination_case` (e.g. `"1"`),
@@ -361,6 +362,47 @@ Set `snow_parameters: false` to skip snow load calculation. Otherwise provide sn
   }
 }
 ```
+
+### Solar panel — ASCE 7-22 ground-mounted
+
+Ground-mounted panels under `asce7-22` take a **damping ratio** alongside the natural frequency (added in
+Load Generator v6.9.0, Oct 2026). Template:
+[`sample-api/loads.getLoads_asce722_solar_panel_ground/`](./sample-api/loads.getLoads_asce722_solar_panel_ground/input.json).
+
+| Key | Value / description |
+|---|---|
+| `structure` | `"solar_panel"` |
+| `panel_type` | `"ground"` |
+| `wind_parameters.structure_type` | `"solar_panel"` |
+| `wind_parameters.lowest_natural_frequency` | Lowest natural frequency of the panel structure, in **Hz** |
+| `wind_parameters.damping_ratio` | Damping ratio of the panel structure as a **fraction of critical damping** (e.g. `"0.05"` = 5%), not a percentage |
+| `wind_parameters.effective_area` | Effective wind area of the component |
+| `solar_panel_dimensions` | Panel geometry object: `Lc`, `omega`, `h`, `Wg`, `sp`, `S`, `S_L`, `S_T`. Definitions are in the Load Generator UI; copy the values' shape from the template |
+| `snow_parameters` | `false` |
+| `building_parameters` | `false` |
+
+```json
+"building_data": {
+  "design_code": "asce7-22",
+  "structure": "solar_panel",
+  "panel_type": "ground",
+  "wind_parameters": {
+    "structure_type": "solar_panel",
+    "lowest_natural_frequency": "1.0",
+    "damping_ratio": "0.05",
+    "effective_area": "23"
+  },
+  "snow_parameters": false,
+  "solar_panel_dimensions": {
+    "Lc": "12", "omega": "24", "h": "6", "Wg": "90",
+    "sp": "0.1", "S": "23", "S_L": "3", "S_T": "12"
+  },
+  "building_parameters": false
+}
+```
+
+Units follow `project_details.units` (the template is `"imperial"`). Roof-mounted (open) solar panels are a
+different request: `structure: "building"` — see `loads.getLoads_asce_open_solar_panel`.
 
 ---
 
@@ -663,7 +705,7 @@ omitted.
 | `loads.getLoads_asce716_seismic_userdefined_params` | `getLoads` | `asce7-16` | `building` — user-defined seismic overrides (`site_seismic_data`) |
 | `loads.getLoads_asce716_rooftop_equipment` | `getLoads` | `asce7-16` | `rooftop-equipment` |
 | `loads.getLoads_asce722_rooftop_equipment` | `getLoads` | `asce7-22` | `rooftop-equipment` |
-| `loads.getLoads_asce722_solar_panel_ground` | `getLoads` | `asce7-22` | `solar_panel` — ground-mounted |
+| `loads.getLoads_asce722_solar_panel_ground` | `getLoads` | `asce7-22` | `solar_panel` — ground-mounted, with `damping_ratio` |
 | `loads.getLoads_asce_open_solar_panel` | `getLoads` | `asce7-16` | `building` — open solar panel roof mount |
 | `loads.getLoads_asce_freestandingwall` | `getLoads` | `asce7-16` | `freestandingwall` |
 | `loads.getLoads_as1170` | `getLoads` | `as1170` | `building` — AS/NZS 1170 wind + snow |
