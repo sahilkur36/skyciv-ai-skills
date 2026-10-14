@@ -435,6 +435,7 @@ For small, one-off edits you can also call these directly instead of going throu
 | `S3D.structure.nodes` | `add(obj)`, `remove([ids])`, `getVector(startNode, endNode)` — unit vector from one node to another |
 | `S3D.structure.members` | `add(obj)`, `remove([ids])`, `getLength(memberId)`, `intersect(obj)` (split by `%`, distance, or `equalParts`), `getIntersectingNodes(obj?)` |
 | `S3D.structure.plates` | `add(obj)` |
+| `S3D.mesher` | `autoMesher(options)`, `meshPlates(options)`, `unMeshPlates(ids, update_ui)` — **asynchronous** (meshing runs on the server). Read [references/meshing.md](references/meshing.md) before meshing or re-meshing plates. |
 | `S3D.structure.supports` | `add({ node_id, fixity })` |
 | `S3D.structure.loads.point_loads` | `add(obj)` — `type: "n"` (node) or `"m"` (member, with `position` 0–100%) |
 | `S3D.structure.loads.distributed_loads` | `add(obj)` — `member`, `x_mag_A/B`, `y_mag_A/B`, `z_mag_A/B`, `position_A/B`, `load_group`, `axes` (`"global"`/`"local"`) |
