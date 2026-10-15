@@ -23,7 +23,7 @@ The library covers 154 calculators across structural, foundation, steel, concret
 2. Otherwise, use a Quick Design calculator. That covers:
    - **all concrete design** (beams, columns, slabs, walls, footings). Always use the Quick Design concrete calculators here, never `S3D.design.rc.check`;
    - codes Member Design doesn't have: all aluminium, CSA O86, EN 1995, NZS 1720;
-   - an edition the user explicitly requires that only Quick Design has (AISC 360-22, CSA S16-24);
+   - an edition the user explicitly requires that only Quick Design has (e.g. AISC 360-22);
    - connections, base plates, plates, lugs, purlins, foundations, and loads;
    - a single hand check with no model;
    - building an S3D calc pack (see [`build-quick-design-calculator`](../build-quick-design-calculator/references/s3d-integration.md)).

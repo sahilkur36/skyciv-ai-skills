@@ -1153,7 +1153,7 @@ A Quick Design calculator needs all of these extracted and passed in by hand: fo
 **Use Quick Design instead when:**
 - the code or material isn't in the list. Examples: all aluminium (AS/NZS 1664, ADM, CSA S157, EN 1999), CSA O86, EN 1995, NZS 1720, and any steel/timber code not listed.
 - the member is **concrete** (beams, columns, slabs, walls, footings). Always use the Quick Design concrete calculators. See the [catalogue](../run-quick-design/assets/catalogue.md) Concrete and Foundation sections.
-- the user explicitly asks for an **edition** that only Quick Design has, e.g. AISC 360-22 or CSA S16-24. Member Design covers AISC 360-16/360-10 and CSA S16-14. If the user just says "AISC" or "CSA S16" without an edition, use Member Design and say which edition you used.
+- the user explicitly asks for an **edition** that only Quick Design has, e.g. AISC 360-22. Member Design covers AISC 360-16/360-10 and CSA S16-24/S16-14. If the user just says "AISC" or "CSA S16" without an edition, use Member Design (`CSA_S16-24` for CSA S16, the current edition) and say which edition you used.
 - it isn't a member check. Examples: connections, bolt/weld groups, base plates, lifting lugs, plates, footings, purlin-specific calcs, scaffolding, loads.
 - there is no S3D model. It's a one-off hand check of a single member with known forces.
 - you're writing a Quick Design calc pack's `s3d_integration.js`. That workflow is Quick Design by definition. See [`build-quick-design-calculator`](../build-quick-design-calculator/references/s3d-integration.md).
@@ -1166,7 +1166,7 @@ A Quick Design calculator needs all of these extracted and passed in by hand: fo
 | `2018-aisc-i-beam-capacity-calculator` (AISC 360-22) | `AISC_360-16_LRFD` / `_ASD`, unless the user requires the 360-22 edition |
 | `2021-nz-steel-calculator` (NZS 3404:1997) | `NZS_3404-1997` |
 | `2012-csa-i-beam` (CSA S16-14) | `CSA_S16-14` |
-| `2022-csa-steel-calculator` (CSA S16-24) | `CSA_S16-14`, unless the user requires the S16-24 edition |
+| `2022-csa-steel-calculator` (CSA S16-24) | `CSA_S16-24` |
 | `2304-as4600-cfs-design-calculator` (AS/NZS 4600:2018) | `ASNZS_4600-2018` (or `AS_4600-2018`) |
 | `2305-aisi-cfs-design-calculator` (AISI S100-16) | `AISI_S100-16_LRFD` / `_ASD` / `_LSD` |
 | `4005-as1720-wood-beam-calculator` (AS 1720.1:2010) | `AS_1720-2010` |
@@ -1190,6 +1190,8 @@ Runs member design checks on every member of the model. Returns capacities, util
 ```
 
 The response `data` contains `capacity` (tension, compression, moments, shears per member), `ratio` (axial, moment, shear, combined, slenderness, displacement, and the worst load combination per member), `grouping`, `summary` (passed/failed members and the critical failure), and HTML/PDF report links. Show the engineer the critical utility ratio and the report link, not just pass/fail.
+
+For `CSA_S16-24`, `design_obj.input.settings.report_mode` sets the member report detail: `"detailed"` (default, step-by-step formulas) or `"table"` (key values in tables, shorter reports).
 
 ### `S3D.design.member.getInput`
 
@@ -1258,7 +1260,7 @@ Goes through the section library to find the lightest section that meets the uti
 
 | Material | `design_code` values |
 |---|---|
-| Steel (hot-rolled) | `AISC_360-16_LRFD`, `AISC_360-16_ASD`, `AISC_360-10_LRFD`, `AISC_360-10_ASD`, `AS_4100-2020`, `AS_4100-1998`, `EN_1993-1-1-2005`, `CSA_S16-14`, `NZS_3404-1997`, `BS_5950-1-2000`, `IS_800-2007_LSM`, `IS_800-1984_WSM` |
+| Steel (hot-rolled) | `AISC_360-16_LRFD`, `AISC_360-16_ASD`, `AISC_360-10_LRFD`, `AISC_360-10_ASD`, `AS_4100-2020`, `AS_4100-1998`, `EN_1993-1-1-2005`, `CSA_S16-24`, `CSA_S16-14`, `NZS_3404-1997`, `BS_5950-1-2000`, `IS_800-2007_LSM`, `IS_800-1984_WSM` |
 | Cold-formed steel | `AISI_S100-16_LRFD`, `AISI_S100-16_ASD`, `AISI_S100-16_LSD`, `AISI_S100-12_LRFD`, `AISI_S100-12_ASD`, `ASNZS_4600-2018`, `AS_4600-2018`, `AS_4600-2005`, `EN1993-1-3-2006` |
 | Timber | `NDS_2018_LRFD`, `NDS_2018_ASD`, `AS_1720-2010` |
 

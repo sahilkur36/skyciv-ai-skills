@@ -4,7 +4,7 @@ Index of all available calculators. Each entry links to its asset folder contain
 
 **Total calculators:** 154
 
-> **Steel, cold-formed steel or timber member design on an S3D model?** If the code is supported by [`S3D.design.member.check`](../../s3d-api/SKILL.md#s3ddesign-functions), use that instead of a member calculator below. This covers AISC 360-16/10, AS 4100, EN 1993-1-1/1-3, CSA S16-14, NZS 3404, BS 5950, IS 800, AISI S100, AS/NZS 4600, NDS 2018 and AS 1720. See the [mapping table](../../s3d-api/SKILL.md#member-design-vs-quick-design-which-to-use). **Concrete is the exception: always use the Concrete calculators below, not `S3D.design.rc.check`.**
+> **Steel, cold-formed steel or timber member design on an S3D model?** If the code is supported by [`S3D.design.member.check`](../../s3d-api/SKILL.md#s3ddesign-functions), use that instead of a member calculator below. This covers AISC 360-16/10, AS 4100, EN 1993-1-1/1-3, CSA S16-24/S16-14, NZS 3404, BS 5950, IS 800, AISI S100, AS/NZS 4600, NDS 2018 and AS 1720. See the [mapping table](../../s3d-api/SKILL.md#member-design-vs-quick-design-which-to-use). **Concrete is the exception: always use the Concrete calculators below, not `S3D.design.rc.check`.**
 
 ## General
 
