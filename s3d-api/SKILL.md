@@ -372,8 +372,8 @@ Applied to plates.
 
 ### `self_weight`
 
-Simple form — a single flat object, self-weight is always included at full (1.0) magnitude
-regardless of which load combination is being solved:
+Simple form — a single flat object. It is placed in load group `SW1` automatically (verified
+live), so every combination still scales it by its `SW1` factor:
 
 ```json
 {
@@ -386,9 +386,8 @@ regardless of which load combination is being solved:
 }
 ```
 
-**If you're using `load_combinations`**, use the integer-keyed form instead, with a `load_group`
-on each entry (conventionally `"SW1"`) — otherwise self-weight has no group to match against
-any combination's factor and is effectively invisible to it:
+Integer-keyed form — use it to name the group explicitly. An entry without `load_group` also
+defaults to `SW1`:
 
 ```json
 {
@@ -411,8 +410,8 @@ any combination's factor and is effectively invisible to it:
 ```
 
 > See the [`load-combinations`](../load-combinations/SKILL.md) skill for how this ties into
-> `load_combinations` factors — a combo with an `"SW1"` factor and no matching `load_group` on
-> `self_weight` will silently apply no self-weight at all.
+> `load_combinations` factors. The real trap is the other way round: a combination **without**
+> an `SW1` key silently applies no self-weight.
 
 ---
 
@@ -436,8 +435,8 @@ any combination's factor and is effectively invisible to it:
 
 > **Building code-correct combinations?** See the [`load-combinations`](../load-combinations/SKILL.md)
 > skill for how `load_combinations`, `load_cases`, and `load_combination_settings` fit together,
-> representative combination sets for the US / Europe / Canada / Australia / India, a full worked
-> AS/NZS 1170 example, and how to generate the complete enumerated set for any design code.
+> the generator's factor tables for ASCE 7-22 LRFD/ASD, AS/NZS 1170.0, NBCC 2020, EN 1990 and
+> IS 800, and how to call the combination generator and convert its output.
 
 ---
 
@@ -508,6 +507,8 @@ The key is the design code identifier. Each nested key is a load group name from
 ```
 
 > Multiple load groups can map to the same load type (e.g. several wind direction groups all mapped to `"W"`). Multiple design codes can coexist in the same `load_cases` object.
+>
+> Values must be the code's short symbols as shown. The `"Dead: dead"` style shows every group as Dead in the S3D UI. The UI reads the entry for `load_combination_settings.code`, and falls back to `ASCE-7-2022-LRFD` when that isn't set. Each symbol also adds a `type: "load_case"` result to the solve output. All verified live.
 
 ---
 
@@ -526,7 +527,7 @@ Settings controlling automatic generation of code-based load combinations from `
 | `load_case_mappings` | Maps short load group codes to full descriptive load case names |
 | `load_case_sub_groups` | Sub-group assignments (`{"name", "sub_group"}`) controlling which load groups combine together |
 
-> See the [`load-combinations`](../load-combinations/SKILL.md) skill for how this fits together with `load_combinations` and `load_cases`.
+> `country` and `code` are **not** just metadata: they choose the standard the S3D UI's Load Group & Cases manager uses to read `load_cases`. Set them for any code other than `ASCE-7-2022-LRFD`. See the [`load-combinations`](../load-combinations/SKILL.md) skill for how this fits together with `load_combinations` and `load_cases`.
 
 ---
 
