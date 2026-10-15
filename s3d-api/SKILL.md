@@ -117,6 +117,7 @@ Imperial defaults: `ft`, `in`, `ksi`, `lb/ft3`, `kip`, `kip-ft`, `ksf`, `kip`, `
 | `local_axis_y` | `[float]` | Global vector `[X,Y,Z]` for local y-axis |
 | `local_axis_z` | `[float]` | Global vector `[X,Y,Z]` for local z-axis |
 | `disable_non_linear_effects` | `string` (optional) | `"yes"`, `"no"` (default) — excludes this member from non-linear/P-delta effects |
+| `design_params` | `object` (optional) | Member Design inputs for this member, e.g. `{"global_buckling_bracing": "top", "minor_axis_bracing": true}` for `ASNZS_4600-2018`. See [Minor axis bracing](#minor-axis-bracing-asnzs_4600-2018-only) |
 
 **`type` values:**
 - `cable` — tension-only, no bending stiffness, true catenary sag. Triggers a non-linear analysis. Forces `rotation_angle`→`0`, `fixity_A`/`fixity_B`→`FFFRRR`, offsets→`0`.
@@ -1197,6 +1198,51 @@ Returns the default `design_obj` for a `design_code`, built from the current mod
 | Key | Type | Required | Description |
 |---|---|---|---|
 | `design_code` | `string` | yes | One of the [supported values](#supported-member-design_code-values) |
+
+#### Minor axis bracing (`ASNZS_4600-2018` only)
+
+Cold-formed purlins/girts continuously braced by sheeting can be set as **braced about their minor axis**: M<sub>y</sub> from the analysis is taken as 0 in every strength combination, and the checks use the **geometric axes** (not principal) properties. Only Z and Lipped Z results change beyond M<sub>y</sub>; symmetric sections (C, Lipped C, Hat, boxes) have the same properties about both. Other codes ignore it.
+
+There are three ways to set it. Member Design uses the first one it finds: `design_obj` passed to `check`, else the model's `design_input` for the code, else the defaults built from the model (the only case where `design_params` is read).
+
+| Way | Where | Use when |
+|---|---|---|
+| 1. `design_obj` | `check` argument | You're already doing `getInput` → edit → `check` |
+| 2. `design_params` | each member in `s3d_model.members` | Building the model and you want the defaults plus bracing, with no `getInput` round trip |
+| 3. `design_input` | `s3d_model` root | The design settings should be saved with the model (`S3D.file.save`) and open in the UI |
+
+**1. `design_obj`:** find the member's `restraint_id` in `design_obj.input.design_members`, then on **every** position of `design_obj.input.restraints["<restraint_id>"]` set:
+
+| Key | Type | Values | Notes |
+|---|---|---|---|
+| `minor_axis_bracing` | `boolean` | `true` / `false` (default `false`) | Member-wide: read from the **first** position and applied to all, so set it on every position. Applies to **every** member sharing that `restraint_id`. |
+| `global_buckling_bracing` | `string` | `"unbraced"` (default), `"top"`, `"bottom"`, `"both"` | Must be `top`/`bottom`/`both` on the first position and on every intermediate position that starts a segment (`LB` not starting with `"RR"`), or `minor_axis_bracing` is **silently reset to `false`** (no error). The last position doesn't start a segment. |
+
+```js
+for (const m of design_obj.input.design_members) {
+  if (!idsToBrace.includes(m.id)) continue;
+  for (const pos of Object.values(design_obj.input.restraints[m.restraint_id])) {
+    pos.global_buckling_bracing = "top";   // sheeting on the top flange
+    pos.minor_axis_bracing = true;
+  }
+}
+// then S3D.design.member.check { design_code: "ASNZS_4600-2018", design_obj }
+```
+
+**2. `design_params` on the member** (in `S3D.model.set`):
+
+```json
+"members": {
+  "1": { "node_A": 1, "node_B": 2, "section_id": 1, "fixity_A": "FFFFFF", "fixity_B": "FFFFFF",
+         "design_params": { "global_buckling_bracing": "top", "minor_axis_bracing": true } }
+}
+```
+
+`global_buckling_bracing` goes on every restraint position but the last, `minor_axis_bracing` on all. Gotchas: `minor_axis_bracing` is **ignored** unless `global_buckling_bracing` is `top`/`bottom`/`both` (missing or `"unbraced"` → not braced); any other string is an error. It's only read when the defaults are built: ignored if you pass a `design_obj` or the model has a `design_input` for the code, and for members grouped into a physical member. Each member gets its own restraint ID here, so nothing is shared.
+
+**3. `design_input` on the model:** `s3d_model.design_input["ASNZS_4600-2018"]` holds the same object as `design_obj.input` (`design_members`, `restraints`, …), so set the restraint keys exactly as in way 1. Easiest: `getInput`, edit, then put `design_obj.input` there before `S3D.model.set`/`S3D.file.save`.
+
+To confirm it applied, the member's report shows M<sub>y</sub> as "-" in the loads table and says the minor axis bending checks weren't needed. Design messages `w110`–`w113` on a Z/Lipped Z member mean it **was** applied but a geometric axes DSM factor (`*_g`) was missing and the principal axes value was used.
 
 ### `S3D.design.member.optimize`
 
