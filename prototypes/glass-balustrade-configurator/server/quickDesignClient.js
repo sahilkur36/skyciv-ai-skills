@@ -94,7 +94,7 @@ async function runBatch(postDemands) {
 
 // "Open in Quick Design" link, prefilled with this post's core geometry/demand so the
 // user can inspect or re-run the check interactively on platform.skyciv.com - see
-// run-quick-design/SKILLS.md's documented `?uid=...&field=value...` pattern.
+// run-quick-design/SKILL.md's documented `?uid=...&field=value...` pattern.
 function buildOpenLink(demand) {
   const input = buildInput(demand);
   const params = new URLSearchParams();

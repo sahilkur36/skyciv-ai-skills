@@ -9,7 +9,7 @@ const path = require('path');
 // node/member geometry used for the analysis model. The truss is already planar
 // (z = 0 for every node), so every member is drawn - no front/back filtering needed.
 //
-// Per cloudcad-api/SKILLS.md's "Pages & Title Blocks" section (default behavior unless
+// Per cloudcad-api/references/pages-and-title-blocks.md (default behavior unless
 // told otherwise): every drawing is wrapped in that skill's ready-made A2-landscape
 // page + title block template, reused directly from the skill's own asset rather than
 // duplicated here, so there's one source of truth for it.
@@ -72,11 +72,11 @@ const ATTRIBUTE_STYLE = {
 // safe zone below, with generous surrounding white space - correct at this scale, not a
 // sizing bug. For a truss-appropriate "zoomed in" scale, use a title-block/page template
 // built for a finer scale (e.g. 1:20 instead of this one's ~1:100) - see
-// cloudcad-api/SKILLS.md's "Known limitations".
+// cloudcad-api/references/pages-and-title-blocks.md.
 const SAFE_ZONE = { minX: 69000, maxX: 114000, minY: -103000, maxY: -65000 };
 
-// CloudCAD's canvas y-axis is up = negative (cloudcad-api/SKILLS.md "Coordinate
-// System") - the opposite of this app's s3d_model y-axis (up = positive) - so every
+// CloudCAD's canvas y-axis is up = negative (cloudcad-api/SKILL.md
+// "Coordinates") - the opposite of this app's s3d_model y-axis (up = positive) - so every
 // point drawn "upward" (increasing height) needs its y negated here.
 function pt(x, y) {
   return { x: x * FT_TO_MM, y: -y * FT_TO_MM };

@@ -1,33 +1,747 @@
 {
   "status": 0,
   "data": {
-    "report": "https://pdf.skyciv.com/...  (PDF report link, valid for 1 hour)",
     "results": {
-      "Design Summary": {
-        "label": "Design Summary",
-        "units": "heading"
+      "csv_table_data": {
+        "units": "csv_table",
+        "label": "View Load Combinations",
+        "popup_label": "Load Combinations Table",
+        "value": [
+          [
+            "ID",
+            "Name",
+            "Criteria",
+            "D1",
+            "L1",
+            "W1",
+            "W2"
+          ],
+          [
+            "1",
+            "1: 1.40D1",
+            "Strength",
+            1.4,
+            "",
+            "",
+            ""
+          ],
+          [
+            "2",
+            "2: 1.20D1 + 1.60L1",
+            "Strength",
+            1.2,
+            1.6,
+            "",
+            ""
+          ],
+          [
+            "3",
+            "18: 1.20D1 + 1.00L1 + 1.00W1",
+            "Strength",
+            1.2,
+            1,
+            1,
+            ""
+          ],
+          [
+            "4",
+            "19: 1.20D1 + 1.00L1 + 1.00W2",
+            "Strength",
+            1.2,
+            1,
+            "",
+            1
+          ],
+          [
+            "5",
+            "30: 1.20D1 + 1.00W1",
+            "Strength",
+            1.2,
+            "",
+            1,
+            ""
+          ],
+          [
+            "6",
+            "31: 1.20D1 + 1.00W2",
+            "Strength",
+            1.2,
+            "",
+            "",
+            1
+          ],
+          [
+            "7",
+            "36: 0.90D1",
+            "Strength",
+            0.9,
+            "",
+            "",
+            ""
+          ],
+          [
+            "8",
+            "37: 0.90D1 + 1.60L1",
+            "Strength",
+            0.9,
+            1.6,
+            "",
+            ""
+          ],
+          [
+            "9",
+            "53: 0.90D1 + 1.00L1 + 1.00W1",
+            "Strength",
+            0.9,
+            1,
+            1,
+            ""
+          ],
+          [
+            "10",
+            "54: 0.90D1 + 1.00L1 + 1.00W2",
+            "Strength",
+            0.9,
+            1,
+            "",
+            1
+          ],
+          [
+            "11",
+            "65: 0.90D1 + 1.00W1",
+            "Strength",
+            0.9,
+            "",
+            1,
+            ""
+          ],
+          [
+            "12",
+            "66: 0.90D1 + 1.00W2",
+            "Strength",
+            0.9,
+            "",
+            "",
+            1
+          ]
+        ]
       },
-      "Utilization Ratio": {
-        "value": 0.85,
-        "info": "Ratio of demand to capacity — must be ≤ 1.0",
-        "units": "utility",
-        "label": "Utilization Ratio"
+      "csv_table_copy": {
+        "units": "csv_copy",
+        "label": "Copy Load Combinations",
+        "value": [
+          [
+            "ID",
+            "Name",
+            "Criteria",
+            "D1",
+            "L1",
+            "W1",
+            "W2"
+          ],
+          [
+            "1",
+            "1: 1.40D1",
+            "Strength",
+            1.4,
+            "",
+            "",
+            ""
+          ],
+          [
+            "2",
+            "2: 1.20D1 + 1.60L1",
+            "Strength",
+            1.2,
+            1.6,
+            "",
+            ""
+          ],
+          [
+            "3",
+            "18: 1.20D1 + 1.00L1 + 1.00W1",
+            "Strength",
+            1.2,
+            1,
+            1,
+            ""
+          ],
+          [
+            "4",
+            "19: 1.20D1 + 1.00L1 + 1.00W2",
+            "Strength",
+            1.2,
+            1,
+            "",
+            1
+          ],
+          [
+            "5",
+            "30: 1.20D1 + 1.00W1",
+            "Strength",
+            1.2,
+            "",
+            1,
+            ""
+          ],
+          [
+            "6",
+            "31: 1.20D1 + 1.00W2",
+            "Strength",
+            1.2,
+            "",
+            "",
+            1
+          ],
+          [
+            "7",
+            "36: 0.90D1",
+            "Strength",
+            0.9,
+            "",
+            "",
+            ""
+          ],
+          [
+            "8",
+            "37: 0.90D1 + 1.60L1",
+            "Strength",
+            0.9,
+            1.6,
+            "",
+            ""
+          ],
+          [
+            "9",
+            "53: 0.90D1 + 1.00L1 + 1.00W1",
+            "Strength",
+            0.9,
+            1,
+            1,
+            ""
+          ],
+          [
+            "10",
+            "54: 0.90D1 + 1.00L1 + 1.00W2",
+            "Strength",
+            0.9,
+            1,
+            "",
+            1
+          ],
+          [
+            "11",
+            "65: 0.90D1 + 1.00W1",
+            "Strength",
+            0.9,
+            "",
+            1,
+            ""
+          ],
+          [
+            "12",
+            "66: 0.90D1 + 1.00W2",
+            "Strength",
+            0.9,
+            "",
+            "",
+            1
+          ]
+        ]
       },
-      "Design Check": {
-        "value": "PASS",
-        "units": "custom_box",
-        "label": "Overall Design Check",
-        "color": "#21BA45"
+      "download_heading": {
+        "units": "heading",
+        "label": "Downloads"
       },
-      "Example Dimension": {
-        "value": 250,
-        "info": "Example numeric result",
-        "units": "mm",
-        "label": "Example Dimension"
+      "combination_obj": {
+        "units": "json_file",
+        "label": "JSON Data",
+        "value": {
+          "1": {
+            "criteria": "Strength",
+            "schema_row": "1a-D1-u",
+            "name": "1: 1.40D1",
+            "groups": [
+              {
+                "coefficient": 1.4,
+                "factor": 1,
+                "value": 1.4,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              }
+            ],
+            "keep": true
+          },
+          "2": {
+            "criteria": "Strength",
+            "schema_row": "2a-L1-u",
+            "name": "2: 1.20D1 + 1.60L1",
+            "groups": [
+              {
+                "coefficient": 1.2,
+                "factor": 1,
+                "value": 1.2,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1.6,
+                "factor": 1,
+                "value": 1.6,
+                "id": "L1",
+                "name": null,
+                "load_case": "L",
+                "label": "L1"
+              }
+            ],
+            "keep": true
+          },
+          "3": {
+            "criteria": "Strength",
+            "schema_row": "4a-W1-u",
+            "name": "18: 1.20D1 + 1.00L1 + 1.00W1",
+            "groups": [
+              {
+                "coefficient": 1.2,
+                "factor": 1,
+                "value": 1.2,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "L1",
+                "name": null,
+                "load_case": "L",
+                "label": "L1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "W1",
+                "name": null,
+                "load_case": "W",
+                "label": "W1"
+              }
+            ],
+            "keep": true
+          },
+          "4": {
+            "criteria": "Strength",
+            "schema_row": "4a-W1-u",
+            "name": "19: 1.20D1 + 1.00L1 + 1.00W2",
+            "groups": [
+              {
+                "coefficient": 1.2,
+                "factor": 1,
+                "value": 1.2,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "L1",
+                "name": null,
+                "load_case": "L",
+                "label": "L1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "W2",
+                "name": null,
+                "load_case": "W",
+                "label": "W2"
+              }
+            ],
+            "keep": true
+          },
+          "5": {
+            "criteria": "Strength",
+            "schema_row": "5a-U1-u",
+            "name": "30: 1.20D1 + 1.00W1",
+            "groups": [
+              {
+                "coefficient": 1.2,
+                "factor": 1,
+                "value": 1.2,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "W1",
+                "name": null,
+                "load_case": "W",
+                "label": "W1"
+              }
+            ],
+            "keep": true
+          },
+          "6": {
+            "criteria": "Strength",
+            "schema_row": "5a-U1-u",
+            "name": "31: 1.20D1 + 1.00W2",
+            "groups": [
+              {
+                "coefficient": 1.2,
+                "factor": 1,
+                "value": 1.2,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "W2",
+                "name": null,
+                "load_case": "W",
+                "label": "W2"
+              }
+            ],
+            "keep": true
+          },
+          "7": {
+            "criteria": "Strength",
+            "schema_row": "1a-D1-f",
+            "name": "36: 0.90D1",
+            "groups": [
+              {
+                "coefficient": 0.9,
+                "factor": 1,
+                "value": 0.9,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              }
+            ],
+            "keep": true
+          },
+          "8": {
+            "criteria": "Strength",
+            "schema_row": "2a-L1-f",
+            "name": "37: 0.90D1 + 1.60L1",
+            "groups": [
+              {
+                "coefficient": 0.9,
+                "factor": 1,
+                "value": 0.9,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1.6,
+                "factor": 1,
+                "value": 1.6,
+                "id": "L1",
+                "name": null,
+                "load_case": "L",
+                "label": "L1"
+              }
+            ],
+            "keep": true
+          },
+          "9": {
+            "criteria": "Strength",
+            "schema_row": "4a-W1-f",
+            "name": "53: 0.90D1 + 1.00L1 + 1.00W1",
+            "groups": [
+              {
+                "coefficient": 0.9,
+                "factor": 1,
+                "value": 0.9,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "L1",
+                "name": null,
+                "load_case": "L",
+                "label": "L1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "W1",
+                "name": null,
+                "load_case": "W",
+                "label": "W1"
+              }
+            ],
+            "keep": true
+          },
+          "10": {
+            "criteria": "Strength",
+            "schema_row": "4a-W1-f",
+            "name": "54: 0.90D1 + 1.00L1 + 1.00W2",
+            "groups": [
+              {
+                "coefficient": 0.9,
+                "factor": 1,
+                "value": 0.9,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "L1",
+                "name": null,
+                "load_case": "L",
+                "label": "L1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "W2",
+                "name": null,
+                "load_case": "W",
+                "label": "W2"
+              }
+            ],
+            "keep": true
+          },
+          "11": {
+            "criteria": "Strength",
+            "schema_row": "5a-U1-f",
+            "name": "65: 0.90D1 + 1.00W1",
+            "groups": [
+              {
+                "coefficient": 0.9,
+                "factor": 1,
+                "value": 0.9,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "W1",
+                "name": null,
+                "load_case": "W",
+                "label": "W1"
+              }
+            ],
+            "keep": true
+          },
+          "12": {
+            "criteria": "Strength",
+            "schema_row": "5a-U1-f",
+            "name": "66: 0.90D1 + 1.00W2",
+            "groups": [
+              {
+                "coefficient": 0.9,
+                "factor": 1,
+                "value": 0.9,
+                "id": "D1",
+                "name": null,
+                "load_case": "D",
+                "label": "D1"
+              },
+              {
+                "coefficient": 1,
+                "factor": 1,
+                "value": 1,
+                "id": "W2",
+                "name": null,
+                "load_case": "W",
+                "label": "W2"
+              }
+            ],
+            "keep": true
+          }
+        }
+      },
+      "table_data": {
+        "units": "csv_file",
+        "label": "CSV Data",
+        "value": [
+          [
+            "ID",
+            "Name",
+            "Criteria",
+            "D1",
+            "L1",
+            "W1",
+            "W2"
+          ],
+          [
+            "1",
+            "1: 1.40D1",
+            "Strength",
+            1.4,
+            "",
+            "",
+            ""
+          ],
+          [
+            "2",
+            "2: 1.20D1 + 1.60L1",
+            "Strength",
+            1.2,
+            1.6,
+            "",
+            ""
+          ],
+          [
+            "3",
+            "18: 1.20D1 + 1.00L1 + 1.00W1",
+            "Strength",
+            1.2,
+            1,
+            1,
+            ""
+          ],
+          [
+            "4",
+            "19: 1.20D1 + 1.00L1 + 1.00W2",
+            "Strength",
+            1.2,
+            1,
+            "",
+            1
+          ],
+          [
+            "5",
+            "30: 1.20D1 + 1.00W1",
+            "Strength",
+            1.2,
+            "",
+            1,
+            ""
+          ],
+          [
+            "6",
+            "31: 1.20D1 + 1.00W2",
+            "Strength",
+            1.2,
+            "",
+            "",
+            1
+          ],
+          [
+            "7",
+            "36: 0.90D1",
+            "Strength",
+            0.9,
+            "",
+            "",
+            ""
+          ],
+          [
+            "8",
+            "37: 0.90D1 + 1.60L1",
+            "Strength",
+            0.9,
+            1.6,
+            "",
+            ""
+          ],
+          [
+            "9",
+            "53: 0.90D1 + 1.00L1 + 1.00W1",
+            "Strength",
+            0.9,
+            1,
+            1,
+            ""
+          ],
+          [
+            "10",
+            "54: 0.90D1 + 1.00L1 + 1.00W2",
+            "Strength",
+            0.9,
+            1,
+            "",
+            1
+          ],
+          [
+            "11",
+            "65: 0.90D1 + 1.00W1",
+            "Strength",
+            0.9,
+            "",
+            1,
+            ""
+          ],
+          [
+            "12",
+            "66: 0.90D1 + 1.00W2",
+            "Strength",
+            0.9,
+            "",
+            "",
+            1
+          ]
+        ]
+      },
+      "stats_heading": {
+        "units": "heading",
+        "label": "Statistics"
+      },
+      "unique_combinations": {
+        "units": "none",
+        "label": "Unique Valid Combinations",
+        "value": 12,
+        "integer": true
+      },
+      "total_combinations": {
+        "units": "none",
+        "label": "Total Possible Combinations",
+        "value": 69,
+        "integer": true
+      },
+      "unnecessary_combinations": {
+        "units": "none",
+        "label": "Removed Combinations",
+        "info": "Redundant combinations are removed if <i>Remove Unnecessary</i> is true.",
+        "value": 57,
+        "integer": true
       }
-    }
+    },
+    "key_image": false,
+    "secondary_key_image": false,
+    "intermediate_results": [],
+    "report": "(omitted: ~100 KB HTML/PDF report object, not needed to build load_combinations)"
   },
-  "log": "",
+  "log": "(omitted: debug dump of combination_obj)",
   "warnings": [],
-  "msg": "Design Calc ran successfully"
+  "msg": "Success"
 }

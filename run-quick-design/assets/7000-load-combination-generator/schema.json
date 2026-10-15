@@ -6,10 +6,11 @@
   "properties": {
     "region_input": {
       "type": "string",
-      "description": "Region. Symbol: Region",
+      "description": "Region. The S3D UI sends this as 'country_input' instead; both are accepted.",
       "enum": [
         "australia",
         "united-states",
+        "new-zealand",
         "europe",
         "canada",
         "india"
@@ -17,6 +18,7 @@
       "x-enumLabels": [
         "Australia",
         "United States",
+        "New Zealand",
         "Europe",
         "Canada",
         "India"
@@ -25,14 +27,24 @@
     },
     "standard_input": {
       "type": "string",
-      "description": "Standard. Symbol: Standard",
+      "description": "Standard. Must be the calculator's id. 'Please Select' crashes. NZ has no separate id: the S3D UI sends country_input 'australia' + standard_input 'AS-1170.0-2002' when New Zealand is selected (captured live 2026-09-23); 'AS/NZS-1170.0-2002' fails here even though it's the model/UI code id. The S3D UI also offers ASCE-7-2016-LRFD/ASD, NBCC-2015 and IS-456-2000 (untested here).",
       "enum": [
-        "Please Select"
+        "ASCE-7-2022-LRFD",
+        "ASCE-7-2022-ASD",
+        "AS-1170.0-2002",
+        "NBCC-2020",
+        "EN-1990-2002",
+        "IS-800-2007"
       ],
       "x-enumLabels": [
-        "Please Select"
+        "ASCE-7-2022-LRFD",
+        "ASCE-7-2022-ASD",
+        "AS-1170.0-2002",
+        "NBCC-2020",
+        "EN-1990-2002",
+        "IS-800-2007"
       ],
-      "default": "Please Select"
+      "default": "ASCE-7-2022-LRFD"
     },
     "criteria_input": {
       "type": "string",
@@ -66,33 +78,21 @@
     },
     "multi_dropdown_1": {
       "type": "string",
-      "description": "Filter 01. Symbol: Filter-01",
+      "description": "Filter 01 (favourable/unfavourable dead). REQUIRED - omitting it crashes with \"reading 'split'\". Use \",f,u\".",
       "enum": [
-        null
+        ",f,u"
       ],
       "x-enumLabels": [
-        "undefined"
+        ",f,u"
       ]
     },
     "multi_dropdown_2": {
       "type": "string",
-      "description": "Filter 02. Symbol: Filter-02",
-      "enum": [
-        null
-      ],
-      "x-enumLabels": [
-        "undefined"
-      ]
+      "description": "Filter 02. AS/NZS: \",sta,str\" (stability, strength). Europe: comma list of setA1,setB1,setC,seis."
     },
     "multi_dropdown_3": {
       "type": "string",
-      "description": "Filter 03. Symbol: Filter-03",
-      "enum": [
-        null
-      ],
-      "x-enumLabels": [
-        "undefined"
-      ]
+      "description": "Filter 03. Europe SLS: \",cha,fre,qua\" (characteristic, frequent, quasi-permanent)."
     },
     "multi_dropdown_4": {
       "type": "string",
@@ -112,11 +112,8 @@
         "properties": {
           "col1": {
             "type": "string",
-            "description": "Load Case",
-            "default": "D",
-            "enum": [
-              "D"
-            ]
+            "description": "Load Case symbol for the chosen standard (e.g. D, L, Lr, S, W, Eh for ASCE; G, Qdo, Wu, Ws, Su, Eu, Es for AS 1170.0). See load-combinations/SKILL.md for each code's list.",
+            "default": "D"
           },
           "col2": {
             "type": "string",
@@ -127,7 +124,7 @@
           },
           "col3": {
             "type": "string",
-            "description": "Pattern",
+            "description": "Pattern when col2 > 1: 'independent' = one group per combination (use for wind/seismic directions); 'simultaneous' = all groups together in every combination.",
             "default": "simultaneous",
             "enum": [
               "simultaneous",
@@ -150,7 +147,7 @@
           },
           "col6": {
             "type": "string",
-            "description": "Name Load Groups",
+            "description": "Comma-separated group names, one per col2 (e.g. 'D1,SW1' with col2 = 2), or 'auto' for D1, W1, W2... Names come back in each group's 'label'.",
             "default": "auto"
           }
         }
@@ -164,7 +161,7 @@
     "uid": {
       "type": "string",
       "const": "7000-load-combination-generator",
-      "description": "Calculator unique identifier — must match the endpoint uid."
+      "description": "Calculator unique identifier \u00e2\u20ac\u201d must match the endpoint uid."
     },
     "current_unit_system": {
       "type": "string",

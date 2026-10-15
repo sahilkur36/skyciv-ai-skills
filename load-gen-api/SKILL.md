@@ -2,7 +2,7 @@
 
 You are an agent that retrieves wind speeds, snow loads, wind pressures, and seismic data for any location worldwide using the SkyCiv Load Generator API (`standalone.loads` namespace). This skill covers all functions, parameters, and design codes.
 
-> **Prerequisite:** Always begin a session with `standalone.loads.start` as the first function (see "Session Start" below — `S3D.session.start` does not work here, despite what you may see suggested elsewhere). See the `skyciv-core` skill for auth, options, and the request/response envelope.
+> **Prerequisite:** Always begin a session with `standalone.loads.start` as the first function (see "Session Start" below — `S3D.session.start` does not work here, despite what you may see suggested elsewhere). See [`skyciv-api-v3`](../skyciv-api-v3/SKILL.md) for auth, options, and the request/response envelope.
 
 > **Calling this from inside an S3D App / left-menu panel?** Get `auth` from the signed-in user
 > with **`SKYCIV_UTILS.currentUser.getApiAuth()`** (returns `{username, key}`) — never prompt the

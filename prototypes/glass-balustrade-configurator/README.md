@@ -96,7 +96,7 @@ Then open http://localhost:4200.
   data in the live calculator and crashed every call with a generic
   `"Cannot read properties of undefined (reading 'length')"` error rather than a clear
   validation message; see `server/sectionCatalogue.js`'s comment on `ALLOY`/`TEMPER` and
-  `run-quick-design/SKILLS.md`'s "Troubleshooting" section (updated after this was found)
+  `run-quick-design/SKILL.md`'s "Troubleshooting" section (updated after this was found)
   before changing either value.
 - **Some AS/NZS 1664 combined-action results are flagged `paid_only: true`** by the live
   calculator (e.g. "Combined Tension + Bending", "Combined Bending and Shear") - a value
@@ -136,7 +136,7 @@ Then open http://localhost:4200.
   `standalone.loads.getLoads` needs `standalone.loads.start` specifically - confirmed by
   testing both openers directly against the live API with an otherwise-identical payload.
   `S3D.session.start` is NOT a valid "combined session" opener for this namespace, despite
-  `load-gen-api/SKILLS.md` and the root `CLAUDE.md` both previously claiming it was (fixed
+  `load-gen-api/SKILL.md` and the root `CLAUDE.md` both previously claiming it was (fixed
   in both, plus `skycivClient.js`'s `runSession` now takes an explicit `sessionFunction`
   option so callers can specify the right one).
 - With wind lookup fixed, the AS/NZS 1664 post check (`2601-aluminium-design`) then failed
@@ -144,7 +144,7 @@ Then open http://localhost:4200.
   found by bisecting against that calculator's own `sample_input.json`: the app's default
   alloy/temper (6063-T5) has no data row in the live calculator - swapped to 6061-T6
   (confirmed working, and arguably the more appropriate structural alloy anyway). Fixed in
-  `server/sectionCatalogue.js`; see `run-quick-design/SKILLS.md`'s new "Troubleshooting"
+  `server/sectionCatalogue.js`; see `run-quick-design/SKILL.md`'s new "Troubleshooting"
   section for the general pattern (schema enums are often incomplete stubs; unsupported
   material/temper pairs crash rather than fail validation cleanly).
 - All four issues above were found and fixed by testing directly against the live API

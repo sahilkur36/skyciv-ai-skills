@@ -131,7 +131,7 @@ async function runBatch(memberDemands) {
 
 // "Open in Quick Design" link, prefilled with this member's core geometry/demand so the
 // user can inspect or re-run the check interactively on platform.skyciv.com - see
-// run-quick-design/SKILLS.md's documented `?uid=...&field=value...` pattern. Deliberately
+// run-quick-design/SKILL.md's documented `?uid=...&field=value...` pattern. Deliberately
 // omits the adjust_factor_* table (too large for a URL and the platform UI computes its
 // own when `auto_adjust` is left on).
 function buildOpenLink(demand) {

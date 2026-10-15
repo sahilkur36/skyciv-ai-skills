@@ -47,7 +47,7 @@ async function getWindPressure({ address, buildingHeightM, buildingLengthM, buil
           design_code: 'as1170',
           structure: 'building',
           // "flat" is not a valid roof_profile value (enum is gable/monoslope/hip/
-          // pitched/troughed/open-monoslope per load-gen-api/SKILLS.md) - "monoslope"
+          // pitched/troughed/open-monoslope per load-gen-api/SKILL.md) - "monoslope"
           // with roof_angle: 0 below is the closest approximation. The roof shape
           // doesn't materially affect the windward wall pressure at the balustrade's
           // elevation (what this app actually uses), only roof suction, which is unused.
@@ -115,7 +115,7 @@ async function getWindPressure({ address, buildingHeightM, buildingLengthM, buil
     siteData: data.site_data ?? null,
     windData: data.wind_data ?? null,
     // Viewable AS 1170.2 wind load report - confirmed live at data.wind_pressure.report_link,
-    // not documented under that exact path in load-gen-api/SKILLS.md's response examples.
+    // not documented under that exact path in load-gen-api/SKILL.md's response examples.
     reportLink: data.wind_pressure?.report_link ?? null,
   };
 }

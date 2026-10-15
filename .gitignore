@@ -51,3 +51,11 @@ Thumbs.db
 *.wmv
 
 /prototypes
+# Generated shape manifest — a maintainer tool output, not part of the skill
+analysis-results/assets/example1-shape.md
+
+# >>> link.js managed skills (do not edit this block manually) >>>
+.claude/skills/skill-writer
+# <<< link.js managed skills <<<
+
+.env

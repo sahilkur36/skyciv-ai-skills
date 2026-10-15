@@ -28,7 +28,7 @@ and dead / sheeting / snow / wind (uplift) loads:
    `cloudcad.file.save` (generated directly from the same node/member geometry, since
    CloudCAD has no automatic S3D→CAD converter - see `server/cadDrawing.js`). The
    drawing is placed on an A2-landscape page with a title block by default, per
-   `cloudcad-api/SKILLS.md`'s "Pages & Title Blocks" template - drawn at true size in
+   `cloudcad-api/references/pages-and-title-blocks.md` template - drawn at true size in
    real mm (dimensions are real measurements) and only translated, never scaled, into a
    conservative "keep clear" zone alongside the title block. `settings.canvasLengthUnits`
    is set to `"ft"` purely so dimension labels display in feet - the underlying
@@ -112,7 +112,7 @@ Then open http://localhost:4100.
   to change the displayed unit - only flip the settings key.
 - The `SAFE_ZONE` rectangle is still an estimate derived from analyzing the title
   block's coordinates, not a visually-verified boundary (no tool available here can
-  render/screenshot the CAD viewer) - see `cloudcad-api/SKILLS.md`'s "Known limitations"
+  render/screenshot the CAD viewer) - see `cloudcad-api/references/pages-and-title-blocks.md`
   for the same caveat. Visually check a generated drawing to confirm nothing overlaps
   the title block.
 
@@ -126,4 +126,4 @@ Then open http://localhost:4100.
 - CAD drawing now defaults to a full A2-landscape page with a title block (per the updated cloudcad-api skill), instead of bare geometry
 - CAD drawing was scaling the truss to fill the page, which corrupted dimension labels (24 ft showed as "40000mm") - now drawn at true size and only repositioned, never resized; updated the skill to warn against this specifically
 - CAD units still showed mm - tried pre-converting every coordinate to feet, which double-converted with the display setting and showed "0.08 ft" for a 24 ft span, with the title block's un-rescaled text dwarfing its own shrunken border - `canvasLengthUnits` only controls the displayed label, it doesn't reinterpret stored coordinates, so everything now stays in true mm and only that setting flips to "ft"; updated the skill to document this and to fix the incorrect guidance it previously gave
-- Renderer was reported not updating live on input changes - tried passing a callback as a second argument to `viewer.model.set()` before calling `buildStructure()`/`render()`, which instead broke rendering entirely (nothing displayed). Reverted to the original `set(); buildStructure(); render();` sequence. Root cause of the original staleness report is still unconfirmed - see the open question noted in `renderer/SKILLS.md`'s "Initialization" section
+- Renderer was reported not updating live on input changes - tried passing a callback as a second argument to `viewer.model.set()` before calling `buildStructure()`/`render()`, which instead broke rendering entirely (nothing displayed). Reverted to the original `set(); buildStructure(); render();` sequence. Root cause of the original staleness report is still unconfirmed - see the open question noted in `renderer/SKILL.md`'s "Initialization" section
